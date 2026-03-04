@@ -365,6 +365,7 @@
 ================================================================ */
 const APPID = 431960, PAGE_SIZE = 30;
 const PROXY_DOMAINS = ['steamcommunity.com', 'api.steampowered.com', 'steamusercontent.com'];
+const PUBLIC_PROXY_PREFIX = 'https://r.jina.ai/http://';
 const API_PARAM = new URLSearchParams(location.search).get('api');
 const API_BASE = (API_PARAM || localStorage.getItem('wallhub_api_base') || '').trim().replace(/\/+$/,'');
 if(API_PARAM) localStorage.setItem('wallhub_api_base', API_BASE);
@@ -379,6 +380,57 @@ const S = {
 function apiUrl(path){
   if(!path) return API_BASE || '';
   return API_BASE ? `${API_BASE}${path}` : path;
+}
+function inBackendMode(){
+  return !!API_BASE;
+}
+function proxyUrl(raw){
+  return `${PUBLIC_PROXY_PREFIX}${String(raw||'').replace(/^https?:\/\//,'')}`;
+}
+function buildSteamBrowseUrl(params){
+  const sortMap = {1:'trend',2:'mostrecent',21:'lastupdated',16:'totaluniquesubscribers'};
+  const sort = sortMap[parseInt(params.query_type)] || 'trend';
+  const url = new URL('https://steamcommunity.com/workshop/browse/');
+  url.searchParams.set('appid', String(params.appid || APPID));
+  url.searchParams.set('browsesort', sort);
+  url.searchParams.set('section', 'readytouseitems');
+  url.searchParams.set('actualsort', sort);
+  url.searchParams.set('p', String(params.page || 1));
+  url.searchParams.set('numperpage', String(params.numperpage || PAGE_SIZE));
+  if(params.search_text) url.searchParams.set('searchtext', params.search_text);
+  if(params.days && sort === 'trend' && String(params.days) !== '0') url.searchParams.set('days', String(params.days));
+  Object.entries(params).forEach(([k,v])=>{
+    if(/^requiredtags/.test(k) && v) url.searchParams.append('requiredtags[]', String(v));
+  });
+  return url.toString();
+}
+async function querySteamViaPublicProxy(params){
+  const browseUrl = buildSteamBrowseUrl(params);
+  const res = await fetch(proxyUrl(browseUrl), { cache:'no-store' });
+  if(!res.ok) throw new Error(`公开代理请求失败：HTTP ${res.status}`);
+  const text = await res.text();
+  const totalM = text.match(/Showing\s+[\d,]+-[\d,]+\s+of\s+([\d,]+)\s+entries/i);
+  const total = totalM ? parseInt(totalM[1].replace(/,/g,'')) : 0;
+  const list = [];
+  const seen = new Set();
+  const re = /!\[Image \d+\]\((https:\/\/images\.steamusercontent\.com\/ugc\/[^)]+)\)[\s\S]*?\[([^\]]+)\]\(https?:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=(\d+)[^)]*\)[\s\S]*?by\[([^\]]+)\]\(/g;
+  let m;
+  while((m = re.exec(text))){
+    const id = m[3];
+    if(seen.has(id)) continue;
+    seen.add(id);
+    list.push({
+      publishedfileid: id,
+      title: m[2] || `Wallpaper ${id}`,
+      preview_url: m[1] || '',
+      short_description: `作者: ${m[4] || '未知'}`,
+      subscriptions: 0,
+      favorited: 0,
+      views: 0,
+      tags: []
+    });
+  }
+  return {response:{publishedfiledetails:list,total:total || list.length}};
 }
 
 /* ================================================================
@@ -514,19 +566,23 @@ async function load(){
   S.loading=true;
   showLoading();
   try {
-    const res  = await fetch(apiUrl('/api/steam/query'),{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({params:buildParams()})
-    });
-    if(!res.ok){
-      let serverMsg='';
-      try{
-        const j = await res.json();
-        serverMsg = j && (j.error || j.message) ? String(j.error || j.message) : '';
-      }catch{}
-      throw new Error(serverMsg || `服务器 ${res.status}`);
-    }
-    const data = await res.json();
+    const data = inBackendMode()
+      ? await (async()=>{
+          const res  = await fetch(apiUrl('/api/steam/query'),{
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({params:buildParams()})
+          });
+          if(!res.ok){
+            let serverMsg='';
+            try{
+              const j = await res.json();
+              serverMsg = j && (j.error || j.message) ? String(j.error || j.message) : '';
+            }catch{}
+            throw new Error(serverMsg || (res.status===405 ? `服务器 405（后端地址不正确或未放行 POST）: ${apiUrl('/api/steam/query')}` : `服务器 ${res.status}`));
+          }
+          return res.json();
+        })()
+      : await querySteamViaPublicProxy(buildParams());
     const resp = data.response||data;
     const list = resp.publishedfiledetails||[];
 
@@ -586,11 +642,16 @@ function canShowProxyGuideByFilters(){
   return !S.f.search && !S.f.type && !S.f.rating && (!S.f.genres || !S.f.genres.length || S.f.genres.length===GENRES.length);
 }
 function proxyTipHtml(msg){
+  const m = String(msg||'');
+  const badApi = m.includes('服务器 405');
+  const title = badApi ? '🧩 当前是后端接口配置问题' : '🌐 当前网络可能受限，请开启代理后再访问';
+  const desc = badApi ? '检测到后端接口不可用。请确认你配置的 ?api 地址支持 POST /api/steam/query。' : '检测到请求 Steam 社区服务失败。请先开启 VPN/代理，再点击重试。';
+  const extra = badApi ? `当前 API：${esc(apiUrl('/api/steam/query') || '(未设置)')}` : `原始错误：${esc(msg || '网络请求失败')}`;
   return `
     <div class="proxy-tip">
-      <div class="proxy-title">🌐 当前网络可能受限，请开启代理后再访问</div>
-      <div class="proxy-desc">检测到请求 Steam 社区服务失败。请先开启 VPN/代理，再点击重试。</div>
-      <div class="proxy-desc">原始错误：${esc(msg || '网络请求失败')}</div>
+      <div class="proxy-title">${title}</div>
+      <div class="proxy-desc">${desc}</div>
+      <div class="proxy-desc">${extra}</div>
       <div class="proxy-actions">
         <button class="proxy-btn" onclick="load()">已开启代理，立即重试</button>
         <button class="proxy-btn alt" onclick="copyProxyDomains()">复制代理域名</button>
@@ -733,6 +794,7 @@ function openModal(id){
 
   document.getElementById('mOv').classList.add('open');
   document.body.style.overflow='hidden';
+  if(!inBackendMode()){ renderCmts([]); return; }
 
   // Fetch details
   fetch(apiUrl(`/api/steam/details?id=${id}`))
@@ -791,6 +853,14 @@ function mOvClick(e){ if(e.target===document.getElementById('mOv')) closeModal()
    DOWNLOAD  – Call local /api/download
 ================================================================ */
 function dlWall(fid, title){
+  if(!inBackendMode()){
+    const page = `https://steamcommunity.com/sharedfiles/filedetails/?id=${fid}`;
+    const steamUri = `steam://openurl/${page}`;
+    window.open(steamUri, '_blank');
+    setTimeout(()=>window.open(page, '_blank'), 120);
+    toast(`已跳转订阅页面：${title||fid}`, 'ok');
+    return;
+  }
   const btn=document.getElementById(`sub-${fid}`);
   let packTimer=0;
   if(btn){
@@ -846,8 +916,13 @@ function dlWall(fid, title){
 ================================================================ */
 async function checkServer(){
   try{
-    const r=await fetch(apiUrl(`/health?_=${Date.now()}`),{cache:'no-store'});
-    if(r.ok){ document.getElementById('dot').className='dot ok'; document.getElementById('srvTxt').textContent='服务在线'; }
+    if(inBackendMode()){
+      const r=await fetch(apiUrl(`/health?_=${Date.now()}`),{cache:'no-store'});
+      if(r.ok){ document.getElementById('dot').className='dot ok'; document.getElementById('srvTxt').textContent='服务在线'; return; }
+    }else{
+      const r=await fetch(proxyUrl(`https://steamcommunity.com/workshop/browse/?appid=${APPID}&section=readytouseitems&p=1&numperpage=1&_=${Date.now()}`),{cache:'no-store'});
+      if(r.ok){ document.getElementById('dot').className='dot ok'; document.getElementById('srvTxt').textContent='代理直连模式'; return; }
+    }
   } catch{
     document.getElementById('dot').className='dot err';
     document.getElementById('srvTxt').textContent='连接失败';
