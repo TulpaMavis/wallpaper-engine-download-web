@@ -3,32 +3,26 @@
 > Download all wallpapers for Wallpaper Engine without logging in.
 
 <p align="center">
-  <a href="./README.md"><img src="https://img.shields.io/badge/%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-Switch-2563eb?style=for-the-badge" alt="简体中文" /></a>
-  <a href="./README.en.md"><img src="https://img.shields.io/badge/English-Current-16a34a?style=for-the-badge" alt="English" /></a>
+  <a href="./README.en.md">English</a>
+   · 
+  <a href="./README.md">简体中文</a>
 </p>
 
 ## Badges
 
-![version](https://img.shields.io/badge/version-2.0.0-3fb950?style=flat-square)
-![node](https://img.shields.io/badge/node-%3E%3D16-43853d?style=flat-square&logo=nodedotjs&logoColor=white)
-![runtime](https://img.shields.io/badge/runtime-Node.js-5fa04e?style=flat-square&logo=node.js&logoColor=white)
-![downloader](https://img.shields.io/badge/downloader-SteamCMD-1b2838?style=flat-square&logo=steam&logoColor=white)
-![frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-f7df1e?style=flat-square&logo=javascript&logoColor=000)
-![dependency](https://img.shields.io/badge/dependency-zero-0ea5e9?style=flat-square)
+[![version](https://img.shields.io/badge/version-2.0.0-3fb950?style=flat-square)](https://semver.org/)
+[![node](https://img.shields.io/badge/node-%3E%3D16-43853d?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![runtime](https://img.shields.io/badge/runtime-Node.js-5fa04e?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/en/about)
+[![downloader](https://img.shields.io/badge/downloader-SteamCMD-1b2838?style=flat-square&logo=steam&logoColor=white)](https://developer.valvesoftware.com/wiki/SteamCMD)
+[![frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-f7df1e?style=flat-square&logo=javascript&logoColor=000)](https://developer.mozilla.org/docs/Web/JavaScript)
+[![dependency](https://img.shields.io/badge/dependency-zero-0ea5e9?style=flat-square)](https://nodejs.org/docs/latest/api/)
 
 ## Tech Stack
 
-### Backend
-
 <p>
-  <img src="https://skillicons.dev/icons?i=nodejs" alt="Node.js" />
-  <img src="https://cdn.simpleicons.org/steam/ffffff" alt="SteamCMD" width="48" height="48" />
-</p>
-
-### Frontend
-
-<p>
-  <img src="https://skillicons.dev/icons?i=js,html,css" alt="JavaScript, HTML, CSS" />
+  <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer"><img src="https://skillicons.dev/icons?i=nodejs" alt="Node.js" /></a>
+  <a href="https://developer.valvesoftware.com/wiki/SteamCMD" target="_blank" rel="noopener noreferrer"><img src="https://cdn.simpleicons.org/steam/ffffff" alt="SteamCMD" width="48" height="48" /></a>
+  <a href="https://developer.mozilla.org/" target="_blank" rel="noopener noreferrer"><img src="https://skillicons.dev/icons?i=js,html,css" alt="JavaScript, HTML, CSS" /></a>
 </p>
 
 ## Project Introduction
