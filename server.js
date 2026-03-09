@@ -419,7 +419,7 @@ function POST(url, body, timeout) {
 //  GetPublishedFileDetails (POST, no API key required!)
 //  Returns: preview_url, title, subscriptions, views, favorited, file_size, tags, etc.
 // ─────────────────────────────────────────────────────────────────
-async function getFileDetails(ids) {
+async function getFileDetails(ids, timeoutMs) {
   if (!ids.length) return [];
   const parts = [`itemcount=${ids.length}`];
   ids.forEach((id, i) => parts.push(`publishedfileids%5B${i}%5D=${id}`));
@@ -428,7 +428,7 @@ async function getFileDetails(ids) {
   
   const buf  = await POST(
     'https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/',
-    parts.join('&'), 25000
+    parts.join('&'), timeoutMs || 25000
   );
   const data = JSON.parse(buf.toString('utf8'));
   const list = (data.response && data.response.publishedfiledetails) || [];
@@ -440,6 +440,32 @@ async function getFileDetails(ids) {
   }
   
   return list;
+}
+async function getFileDetailsSafe(ids) {
+  const uniqIds = Array.from(new Set((ids || []).map(v => String(v).trim()).filter(Boolean)));
+  if (!uniqIds.length) return [];
+  let list = [];
+  try {
+    list = await getFileDetails(uniqIds, 9000);
+  } catch (e) {
+    console.warn('[FileDetails] Batch failed:', e.message);
+  }
+  const okCount = list.filter(d => d && d.result === 1).length;
+  if (okCount > 0 || uniqIds.length <= 3) return list;
+  const merged = {};
+  const chunkSize = 8;
+  const chunks = [];
+  for (let i = 0; i < uniqIds.length; i += chunkSize) chunks.push(uniqIds.slice(i, i + chunkSize));
+  const parts = await Promise.all(chunks.map((chunk, idx) =>
+    getFileDetails(chunk, 7000).catch((e) => {
+      console.warn(`[FileDetails] Chunk ${idx + 1} failed:`, e.message);
+      return [];
+    })
+  ));
+  parts.forEach(part => part.forEach(d => { if (d && d.publishedfileid) merged[String(d.publishedfileid)] = d; }));
+  const fallbackList = uniqIds.map(id => merged[id]).filter(Boolean);
+  console.log(`[FileDetails] Safe fallback merged ${fallbackList.length}/${uniqIds.length}`);
+  return fallbackList;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -522,7 +548,7 @@ async function scrapeIds(params) {
   // Extract all publishedfileids
   const seen = new Set();
   const ids  = [];
-  const authors = {};
+  const hints = {};
   for (const m of html.matchAll(/data-publishedfileid="(\d+)"/g)) {
     const id = m[1];
     if (seen.has(id)) continue;
@@ -530,10 +556,18 @@ async function scrapeIds(params) {
     ids.push(id);
     const idx = typeof m.index === 'number' ? m.index : -1;
     if (idx >= 0) {
-      const block = html.substring(idx, idx + 2600);
-      const authorM = block.match(/class="workshopItemAuthorName[^"]*"[\s\S]{0,1000}?<a[^>]*>([\s\S]*?)<\/a>/i);
-      const author = cleanText(authorM ? authorM[1] : '');
-      if (author) authors[id] = author;
+      const block = html.substring(Math.max(0, idx - 280), idx + 3400);
+      const titleM = block.match(/class="workshopItemTitle[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+      const imgM = block.match(/class="workshopItemPreviewImage[^"]*"[^>]+src="([^"]+)"/i) ||
+                   block.match(/<img[^>]+src="([^"]+)"[^>]*>/i);
+      const authorM = block.match(/class="workshopItemAuthorName[^"]*"[\s\S]{0,1200}?<a[^>]*>([\s\S]*?)<\/a>/i);
+      const creatorM = block.match(/workshop_author_link[^"]*"[^>]+href="[^"]*\/profiles\/(\d{17})\/?/i);
+      hints[id] = {
+        title: cleanText(titleM ? titleM[1] : ''),
+        preview_url: imgM ? cleanText(imgM[1]) : '',
+        author: cleanText(authorM ? authorM[1] : ''),
+        creator: creatorM ? creatorM[1] : '',
+      };
     }
   }
 
@@ -550,7 +584,7 @@ async function scrapeIds(params) {
     console.log('[Scrape] ⚠️ No publishedfileid found! HTML length:', html.length);
   }
 
-  return { ids, totalCount, authors };
+  return { ids, totalCount, hints };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -571,7 +605,11 @@ async function handleQuery(req, res) {
   }
 
   try {
-    const mapItem = (id, d, authorName = '') => {
+    const mapItem = (id, d, hint = {}) => {
+      const hintAuthor = cleanText(hint && hint.author);
+      const hintCreator = cleanText(hint && hint.creator);
+      const hintTitle = cleanText(hint && hint.title);
+      const hintPreview = cleanText(hint && hint.preview_url);
       if (d && d.result === 1) {
         return {
           publishedfileid:        id,
@@ -587,30 +625,30 @@ async function handleQuery(req, res) {
           time_created:           d.time_created       || 0,
           short_description:      d.short_description  || '',
           tags:                   d.tags               || [],
-          author:                 authorName           || '',
-          creator:                d.creator            || '',
+          author:                 hintAuthor           || '',
+          creator:                d.creator            || hintCreator || '',
         };
       }
       return {
-        publishedfileid: id, title: `壁纸 ${id}`, preview_url: '',
+        publishedfileid: id, title: hintTitle || `壁纸 ${id}`, preview_url: hintPreview || '',
         subscriptions: 0, lifetime_subscriptions: 0, views: 0,
         favorited: 0, lifetime_favorited: 0, file_size: 0,
-        time_updated: 0, time_created: 0, short_description: '', tags: [], author: '', creator: '',
+        time_updated: 0, time_created: 0, short_description: '', tags: [], author: hintAuthor || '', creator: hintCreator || '',
       };
     };
 
     const hasGenreOr = genreOr.length > 1;
     if (!hasGenreOr) {
-      const { ids, totalCount, authors } = await scrapeIds(params);
+      const { ids, totalCount, hints } = await scrapeIds(params);
       if (!ids.length) {
         return jsonRes(res, 200, { response: { publishedfiledetails: [], total: 0 } });
       }
       let details = [];
-      try { details = await getFileDetails(ids); }
+      try { details = await getFileDetailsSafe(ids); }
       catch (err) { console.warn('[FileDetails Error]', err.message); }
       const detailMap = {};
       details.forEach(d => { if (d && d.publishedfileid) detailMap[d.publishedfileid] = d; });
-      const items = ids.map(id => mapItem(id, detailMap[id], authors[id] || ''));
+      const items = ids.map(id => mapItem(id, detailMap[id], (hints && hints[id]) || {}));
       const total = totalCount > 0 ? totalCount : (ids.length >= numperpage ? 50000 : ids.length);
       console.log(`[Query] Returning ${items.length} items, total=${total}`);
       return jsonRes(res, 200, { response: { publishedfiledetails: items, total, total_count: items.length } });
@@ -627,7 +665,7 @@ async function handleQuery(req, res) {
       if (!totalCount && pageData.totalCount) totalCount = pageData.totalCount;
       if (!pageData.ids.length) break;
       let details = [];
-      try { details = await getFileDetails(pageData.ids); }
+      try { details = await getFileDetailsSafe(pageData.ids); }
       catch (err) { console.warn('[FileDetails Error]', err.message); }
       const detailMap = {};
       details.forEach(d => { if (d && d.publishedfileid) detailMap[d.publishedfileid] = d; });
@@ -638,7 +676,7 @@ async function handleQuery(req, res) {
         if (!(d && d.result === 1)) continue;
         const tagSet = new Set((d.tags || []).map(t => String(t.tag || t).toLowerCase()));
         if (!genreOr.some(g => tagSet.has(g))) continue;
-        matched.push(mapItem(id, d, (pageData.authors && pageData.authors[id]) || ''));
+        matched.push(mapItem(id, d, (pageData.hints && pageData.hints[id]) || {}));
         if (matched.length >= numperpage) break;
       }
       cursorPage += 1;
@@ -666,50 +704,78 @@ async function handleDetails(res, id) {
     A = list[0] && list[0].result === 1 ? list[0] : null;
   } catch (e) { console.warn('[Detail API]', e.message); }
 
-  // B: Scrape HTML detail page
-  let H = null;
-  let detailHtml = '';
-  try {
-    detailHtml = (await GET(
-      `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`,
-      { 'Accept-Language': 'zh-CN,zh;q=0.9' }, 20000
-    )).toString('utf8');
-    H = parseDetailHtml(detailHtml);
-  } catch (e) { console.warn('[Detail HTML]', e.message); }
+  const withDeadline = (promise, ms, fallback) => new Promise(resolve => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(fallback);
+    }, ms);
+    Promise.resolve(promise)
+      .then(v => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(v);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(fallback);
+      });
+  });
 
-  // C: Comments
-  let comments = [];
-  try {
-    // Use POST for comments to emulate browser behavior better
-    const cUrl = `https://steamcommunity.com/comment/PublishedFile_Public/render/${id}/-1/`;
-    const cBody = 'start=0&count=50&feature2=-1&l=schinese&userreview_offset=-1';
-    
-    // We need to use doRequest directly to set custom headers like Referer/X-Requested-With
-    // because POST() helper sets JSON/Form headers but might miss Referer
-    const u = new URL(cUrl);
-    const buf = await doRequest({
-      protocol: u.protocol,
-      hostname: u.hostname,
-      port: u.port ? parseInt(u.port) : undefined,
-      path: u.pathname + u.search,
-      method: 'POST',
-      headers: {
-        'User-Agent': UA,
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'Content-Length': Buffer.byteLength(cBody),
-        'Accept': '*/*',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://steamcommunity.com',
-        'Referer': `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`,
-        'Cookie': STEAM_PREF_COOKIE,
-      },
-      timeout: 15000
-    }, cBody);
+  const detailTask = (async () => {
+    try {
+      const detailHtml = (await GET(
+        `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`,
+        { 'Accept-Language': 'zh-CN,zh;q=0.9' }, 9000
+      )).toString('utf8');
+      return { detailHtml, H: parseDetailHtml(detailHtml) };
+    } catch (e) {
+      console.warn('[Detail HTML]', e.message);
+      return { detailHtml: '', H: null };
+    }
+  })();
 
-    const cData = JSON.parse(buf.toString('utf8'));
-    if (cData.success) comments = parseComments(cData.comments_html || '');
-    else console.warn(`[Comments] Steam returned success=false, id=${id}`);
-  } catch (e) { console.warn('[Comments]', e.message); }
+  const commentsTask = (async () => {
+    try {
+      const cUrl = `https://steamcommunity.com/comment/PublishedFile_Public/render/${id}/-1/`;
+      const cBody = 'start=0&count=50&feature2=-1&l=schinese&userreview_offset=-1';
+      const u = new URL(cUrl);
+      const buf = await doRequest({
+        protocol: u.protocol,
+        hostname: u.hostname,
+        port: u.port ? parseInt(u.port) : undefined,
+        path: u.pathname + u.search,
+        method: 'POST',
+        headers: {
+          'User-Agent': UA,
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          'Content-Length': Buffer.byteLength(cBody),
+          'Accept': '*/*',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Origin': 'https://steamcommunity.com',
+          'Referer': `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`,
+          'Cookie': STEAM_PREF_COOKIE,
+        },
+        timeout: 9000
+      }, cBody);
+      const cData = JSON.parse(buf.toString('utf8'));
+      if (cData.success) return parseComments(cData.comments_html || '');
+      console.warn(`[Comments] Steam returned success=false, id=${id}`);
+      return [];
+    } catch (e) {
+      console.warn('[Comments]', e.message);
+      return [];
+    }
+  })();
+
+  const detailResult = await withDeadline(detailTask, 9500, { detailHtml: '', H: null });
+  let H = detailResult.H;
+  let detailHtml = detailResult.detailHtml;
+  let comments = await withDeadline(commentsTask, 9500, []);
   if (!comments.length && detailHtml) comments = parseComments(detailHtml);
 
   const creatorId = (A && A.creator) ? String(A.creator) : ((H && H.creator_id) ? String(H.creator_id) : '');
@@ -785,10 +851,16 @@ function parseDetailHtml(html) {
   const imgM   = html.match(/id="previewImageMain"[^>]+src="([^"]+)"/) ||
                  html.match(/id="previewImage"[^>]+src="([^"]+)"/)     ||
                  html.match(/class="workshopItemPreviewImageMain[^"]*"[^>]+src="([^"]+)"/);
-  const descM  = html.match(/id="highlightContent"[^>]*>([\s\S]*?)<\/div>/);
-  const authBlkM = html.match(/class="workshopItemAuthorName[^"]*"[\s\S]{0,1200}?<\/a>/);
-  const authM  = authBlkM ? authBlkM[0].match(/<a[^>]*>([^<]+)<\/a>/) : null;
-  const authHrefM = authBlkM ? authBlkM[0].match(/href="[^"]*\/profiles\/(\d{17})\/?[^"]*"/i) : null;
+  const descM  = html.match(/id="highlightContent"[^>]*>([\s\S]*?)<\/div>/) ||
+                 html.match(/class="workshopItemDescription[^"]*"[^>]*>([\s\S]*?)<\/div>/);
+  const authBlkM = html.match(/class="workshopItemAuthorName[^"]*"[\s\S]{0,1200}?<\/a>/) ||
+                   html.match(/class="friendBlock[^"]*"[\s\S]{0,2200}?<\/div>\s*<\/div>/);
+  const authM  = authBlkM
+    ? (authBlkM[0].match(/<a[^>]*>([^<]+)<\/a>/) || authBlkM[0].match(/class="friendBlockContent"[^>]*>\s*([\s\S]*?)<br/i))
+    : null;
+  const authHrefM = authBlkM
+    ? (authBlkM[0].match(/href="[^"]*\/profiles\/(\d{17})\/?[^"]*"/i) || authBlkM[0].match(/friendBlockLinkOverlay"[^>]*href="[^"]*\/profiles\/(\d{17})\/?[^"]*"/i))
+    : null;
 
   let subs='',favs='',views='',file_size='',time_updated='',time_created='';
   for (const [,n,l] of html.matchAll(/<tr>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/g)) {
@@ -806,6 +878,10 @@ function parseDetailHtml(html) {
   const tags = [];
   for (const [,t] of html.matchAll(/<a[^>]+class="[^"]*workshopTagFilterItem[^"]*"[^>]*>\s*([^<]+)\s*<\/a>/g)) {
     if (!tags.includes(t.trim())) tags.push(t.trim());
+  }
+  for (const [,t] of html.matchAll(/class="workshopTags"[^>]*>[\s\S]*?<a[^>]*>\s*([^<]+)\s*<\/a>/g)) {
+    const tag = t.trim();
+    if (tag && !tags.includes(tag)) tags.push(tag);
   }
   return {
     title:       titleM ? titleM[1].trim() : '',

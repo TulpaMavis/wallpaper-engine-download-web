@@ -709,20 +709,32 @@ function openModal(id){
     .then(r=>{ if(!r.ok) throw new Error(`${r.status}`); return r.json(); })
     .then(d=>{
       if(d.preview_url) document.getElementById('mImg').src=d.preview_url;
-      if(d.description) document.getElementById('mDesc').textContent=d.description;
+      document.getElementById('mDesc').textContent = d.description || item.short_description || (currentLang === 'en' ? 'No description available' : '暂无详细描述');
       if(d.author) document.getElementById('mSub').innerHTML=`<span>🆔 ${id}</span><span>${currentLang === 'en' ? 'Author' : '作者'}: ${esc(d.author)}</span>`;
       if(d.tags && d.tags.length) document.getElementById('mTags').innerHTML=d.tags.map(t=>`<span class="tag-chip">${esc(t)}</span>`).join('');
       renderStats({
         subs:  d.subscriptions || fmtN(item.subscriptions||0),
         favs:  d.favorited     || fmtN(item.favorited||0),
         views: d.views         || fmtN(item.views||0),
-        size:  d.file_size     || t('unknown'),
-        upd:   d.time_updated  || t('unknown'),
+        size:  (d.file_size && d.file_size !== t('unknown')) ? d.file_size : (item.file_size ? fmtBytes(parseInt(item.file_size)) : t('unknown')),
+        upd:   (d.time_updated && d.time_updated !== t('unknown')) ? d.time_updated : (item.time_updated ? fmtTime(item.time_updated) : t('unknown')),
         id,
       });
       renderCmts(d.comments||[]);
     })
-    .catch(err=>{ console.warn('[Detail]',err.message); renderCmts([]); });
+    .catch(err=>{
+      console.warn('[Detail]',err.message);
+      document.getElementById('mDesc').textContent = item.short_description || (currentLang === 'en' ? 'No description available' : '暂无详细描述');
+      renderStats({
+        subs:  fmtN(item.subscriptions||item.lifetime_subscriptions||0),
+        favs:  fmtN(item.favorited||item.lifetime_favorited||0),
+        views: fmtN(item.views||0),
+        size:  item.file_size ? fmtBytes(parseInt(item.file_size)) : t('unknown'),
+        upd:   item.time_updated ? fmtTime(item.time_updated) : t('unknown'),
+        id,
+      });
+      renderCmts([]);
+    });
 }
 
 function renderStats(d){
