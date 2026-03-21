@@ -958,9 +958,13 @@ function registerResponseCleanup(res, fn) {
   res.once('finish', run);
   res.once('close', run);
 }
-function runProcess(bin, args, timeoutMs) {
+function runProcess(bin, args, timeoutMs, options) {
   return new Promise((resolve, reject) => {
-    const cp = spawn(bin, args, { windowsHide: true, env: Object.assign({}, process.env) });
+    const cp = spawn(bin, args, {
+      windowsHide: true,
+      cwd: options && options.cwd ? options.cwd : undefined,
+      env: Object.assign({}, process.env),
+    });
     let out = '';
     let err = '';
     const timer = setTimeout(() => {
@@ -980,6 +984,18 @@ function runProcess(bin, args, timeoutMs) {
     });
   });
 }
+function hasNonAsciiPath(p) {
+  return /[^\x00-\x7F]/.test(String(p || ''));
+}
+function steamCmdInstallBases() {
+  const drive = String(process.env.SystemDrive || 'C:');
+  return [
+    String(process.env.STEAMCMD_HOME || '').trim(),
+    path.join(drive, 'steamcmd'),
+    path.join(drive, 'steamcmd-wallhub'),
+    path.join(__dirname, 'steamcmd'),
+  ].filter(Boolean);
+}
 async function resolveSteamCmdPath() {
   const candidates = [
     process.env.STEAMCMD_PATH || '',
@@ -989,12 +1005,16 @@ async function resolveSteamCmdPath() {
     'C:\\Program Files\\SteamCMD\\steamcmd.exe',
   ].filter(Boolean);
   for (const p of candidates) {
+    if (process.platform === 'win32' && hasNonAsciiPath(p)) continue;
     if (fs.existsSync(p)) return p;
   }
   try {
     const out = await runProcess('where.exe', ['steamcmd']);
-    const first = String(out.out || '').split(/\r?\n/).map(s => s.trim()).find(Boolean);
-    if (first && fs.existsSync(first)) return first;
+    const all = String(out.out || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    for (const one of all) {
+      if (process.platform === 'win32' && hasNonAsciiPath(one)) continue;
+      if (fs.existsSync(one)) return one;
+    }
   } catch {}
   return null;
 }
@@ -1085,15 +1105,23 @@ async function zipDir(dirPath, zipPath) {
 async function ensureSteamCmdReady() {
   const found = await resolveSteamCmdPath();
   if (found) return found;
-  const base = path.join(__dirname, 'steamcmd');
-  const zipFile = path.join(base, 'steamcmd.zip');
-  const exeFile = path.join(base, 'steamcmd.exe');
-  ensureDir(base);
-  const cmd = `$ProgressPreference='SilentlyContinue';Invoke-WebRequest -UseBasicParsing -Uri 'https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip' -OutFile '${psQuote(zipFile)}';Expand-Archive -Path '${psQuote(zipFile)}' -DestinationPath '${psQuote(base)}' -Force`;
-  await runProcess('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], 240000);
-  if (!fs.existsSync(exeFile)) throw new Error('SteamCMD 自动安装后仍未找到 steamcmd.exe');
-  try { fs.unlinkSync(zipFile); } catch {}
-  return exeFile;
+  let lastErr = '';
+  for (const base of steamCmdInstallBases()) {
+    if (process.platform === 'win32' && hasNonAsciiPath(base)) continue;
+    try {
+      const zipFile = path.join(base, 'steamcmd.zip');
+      const exeFile = path.join(base, 'steamcmd.exe');
+      ensureDir(base);
+      const cmd = `$ProgressPreference='SilentlyContinue';Invoke-WebRequest -UseBasicParsing -Uri 'https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip' -OutFile '${psQuote(zipFile)}';Expand-Archive -Path '${psQuote(zipFile)}' -DestinationPath '${psQuote(base)}' -Force`;
+      await runProcess('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], 240000, { cwd: base });
+      if (!fs.existsSync(exeFile)) throw new Error('SteamCMD 自动安装后仍未找到 steamcmd.exe');
+      try { fs.unlinkSync(zipFile); } catch {}
+      return exeFile;
+    } catch (e) {
+      lastErr = e.message;
+    }
+  }
+  throw new Error(lastErr ? `SteamCMD 自动安装失败: ${lastErr}` : 'SteamCMD 自动安装失败');
 }
 function resolveLocalAccount(appId) {
   const candidates = [
@@ -1147,7 +1175,7 @@ async function downloadViaSteamCmd(publishedFileId, appId, title, options) {
             ...variant.itemArgs,
             '+quit',
           ];
-          await runProcess(steamcmd, args, 300000);
+          await runProcess(steamcmd, args, 300000, { cwd: path.dirname(steamcmd) });
           const discovered = findWorkshopItemDir(tempRoot, appId, publishedFileId);
           if (discovered && fs.existsSync(discovered)) {
             const files = fs.readdirSync(discovered);
