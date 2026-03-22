@@ -1,4 +1,5 @@
 const APPID = 431960, PAGE_SIZE = 30;
+const PROXY_DOMAINS = ['steamcommunity.com', 'api.steampowered.com', 'steamusercontent.com'];
 const PREFS_KEY = 'wallhub-prefs-v1';
 
 const S = {
@@ -73,6 +74,10 @@ const I18N = {
     proxyDesc: '检测到请求 Steam 社区服务失败。请先开启 VPN/代理，再点击重试。',
     proxyRaw: '原始错误：{msg}',
     proxyRetest: '已开启代理，立即重试',
+    copyProxyDomains: '复制代理域名',
+    copiedProxyDomains: '代理域名已复制',
+    copyFailed: '复制失败，请手动复制',
+    noClipboard: '当前环境不支持自动复制，请手动复制域名',
     emptyData: '暂无壁纸数据',
     untitled: '未命名壁纸',
     subscribe: '订阅',
@@ -94,12 +99,8 @@ const I18N = {
     processing: '正在处理',
     packaging: '项目正在打包中',
     packagingToast: '项目正在打包中，请稍候…',
-    downloadReceiving: '正在接收文件',
-    downloadQueued: '排队中',
-    downloadElapsed: '已用时 {time}',
     downloadStarted: '已开始下载：{name}',
     downloadFailed: '工坊项目下载失败: {msg}',
-    networkFetchFailed: '无法连接下载接口，请确认服务已启动并刷新页面重试',
     btnDownloaded: '已下载',
     btnFailed: '失败',
   },
@@ -167,6 +168,10 @@ const I18N = {
     proxyDesc: 'Request to Steam Community failed. Enable VPN/proxy and try again.',
     proxyRaw: 'Original error: {msg}',
     proxyRetest: 'Retry after enabling proxy',
+    copyProxyDomains: 'Copy proxy domains',
+    copiedProxyDomains: 'Proxy domains copied',
+    copyFailed: 'Copy failed, please copy manually',
+    noClipboard: 'Clipboard API unavailable, please copy manually',
     emptyData: 'No wallpaper data',
     untitled: 'Untitled Wallpaper',
     subscribe: 'Subscribe',
@@ -188,19 +193,14 @@ const I18N = {
     processing: 'Processing',
     packaging: 'Packaging',
     packagingToast: 'Packaging in progress, please wait…',
-    downloadReceiving: 'Receiving file',
-    downloadQueued: 'Queued',
-    downloadElapsed: 'Elapsed {time}',
     downloadStarted: 'Download started: {name}',
     downloadFailed: 'Workshop download failed: {msg}',
-    networkFetchFailed: 'Cannot reach download API. Ensure server is running, then refresh and retry.',
     btnDownloaded: 'Downloaded',
     btnFailed: 'Failed',
   }
 };
 
 let currentLang = 'zh';
-const activeDownloads = new Set();
 
 const GENRES=[
   {id:'Abstract',n:'抽象'},{id:'Animal',n:'动物'},{id:'Anime',n:'日本动画'},
@@ -615,6 +615,8 @@ function showError(msg){
   const content = `
       <div style="font-size:44px">⚠️</div>
       <div style="color:var(--danger);font-size:16px;font-weight:600">${t('loadFailed')}</div>
+      <div style="font-size:13px;color:var(--text3);max-width:420px">${esc(msg)}</div>
+      <button onclick="load()" style="background:var(--accent);border:none;border-radius:8px;color:#fff;padding:9px 22px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;margin-top:4px">🔄 ${t('retry')}</button>
       ${proxyTipHtml(msg)}
   `;
   document.getElementById('wcon').innerHTML=`
@@ -632,8 +634,17 @@ function proxyTipHtml(msg){
       <div class="proxy-desc">${t('proxyRaw', { msg: esc(msg || t('loadFailed')) })}</div>
       <div class="proxy-actions">
         <button class="proxy-btn" onclick="load()">${t('proxyRetest')}</button>
+        <button class="proxy-btn alt" onclick="copyProxyDomains()">${t('copyProxyDomains')}</button>
       </div>
     </div>`;
+}
+function copyProxyDomains(){
+  const txt = PROXY_DOMAINS.join('\n');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>toast(t('copiedProxyDomains'),'ok')).catch(()=>toast(t('copyFailed'),'warn'));
+    return;
+  }
+  toast(t('noClipboard'),'warn');
 }
 
 function renderItems(items){
@@ -829,131 +840,53 @@ function closeModal(){
 }
 function mOvClick(e){ if(e.target===document.getElementById('mOv')) closeModal(); }
 
-function fmtDuration(ms){
-  const secs = Math.max(0, Math.floor((ms || 0) / 1000));
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-}
-function setSubBtnProgress(btn, icon, text, percent){
-  if(!btn) return;
-  const p = Math.max(0, Math.min(100, Number(percent) || 0));
-  btn.classList.add('progressing');
-  btn.style.setProperty('--dl-progress', `${p}%`);
-  btn.innerHTML = `
-    <span class="sub-main"><i>${icon}</i><span class="sub-main-text">${text} ${Math.round(p)}%</span></span>
-  `;
-}
-function requestDownloadBlob(url, onProgress){
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true);
-    xhr.responseType = 'blob';
-    xhr.timeout = 30 * 60 * 1000;
-    xhr.onprogress = (evt) => {
-      if (!onProgress) return;
-      onProgress(evt.loaded || 0, evt.lengthComputable ? (evt.total || 0) : 0);
-    };
-    xhr.onload = async () => {
-      const status = xhr.status || 0;
-      const contentDisposition = xhr.getResponseHeader('content-disposition') || '';
-      const contentLength = parseInt(xhr.getResponseHeader('content-length') || '0') || 0;
-      if (status >= 200 && status < 300) {
-        resolve({ blob: xhr.response, contentDisposition, contentLength });
-        return;
-      }
-      let msg = `HTTP ${status || 502}`;
-      try {
-        const text = await xhr.response.text();
-        const json = JSON.parse(text || '{}');
-        msg = json.error || json.message || msg;
-      } catch {}
-      reject(new Error(msg));
-    };
-    xhr.onerror = () => reject(new Error('NetworkError'));
-    xhr.ontimeout = () => reject(new Error('Timeout'));
-    xhr.onabort = () => reject(new Error('AbortError'));
-    xhr.send();
-  });
-}
-function normalizeDownloadError(err){
-  const msg = String((err && err.message) || '').trim();
-  if (!msg) return t('resFailed');
-  if (msg === 'AbortError') return '';
-  const lower = msg.toLowerCase();
-  if (lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('load failed')) {
-    return t('networkFetchFailed');
-  }
-  return msg;
-}
-
-async function dlWall(fid, title){
-  const key = String(fid || '').trim();
-  if (!key) return;
-  if (activeDownloads.has(key)) {
-    toast(t('processing'),'info');
-    return;
-  }
-  activeDownloads.add(key);
-  const btn=document.getElementById(`sub-${fid}`);
-  let progress = 0;
-  const startAt = Date.now();
-  let phase = 'queue';
-  let hasToastPack = false;
-  const tick = setInterval(()=>{
-    if (phase === 'queue') progress = Math.min(68, progress + 1.2);
-    const text = phase === 'queue' ? t('packaging') : t('downloadReceiving');
-    const icon = phase === 'queue' ? '📦' : '⬇️';
-    if (phase === 'queue' && !hasToastPack && Date.now() - startAt > 1600) {
+function dlWall(fid, title){
+  const btn = document.getElementById(`sub-${fid}`);
+  let packTimer = 0;
+  
+  if(btn){
+    btn.classList.add('dling');
+    btn.innerHTML = `<i>⏳ </i> ${t('processing')}`;
+    packTimer = setTimeout(()=>{
+      if(!btn.classList.contains('dling')) return;
+      btn.innerHTML = `<i>📦</i> ${t('packaging')}`;
       toast(t('packagingToast'),'info');
-      hasToastPack = true;
-    }
-    setSubBtnProgress(btn, icon, text, progress);
-  }, 650);
-  try{
-    if(btn){
-      btn.classList.add('dling');
-      setSubBtnProgress(btn, '⏳', t('downloadQueued'), 0);
-    }
-    const dlUrl = `/api/download?id=${fid}&title=${encodeURIComponent(title||'')}`;
-    const dl = await requestDownloadBlob(dlUrl, (loaded, total) => {
-      if (phase !== 'stream') phase = 'stream';
-      if (total > 0) progress = Math.max(progress, Math.min(99, (loaded / total) * 100));
-      else progress = Math.max(progress, Math.min(96, progress + 0.6));
-      setSubBtnProgress(btn, '⬇️', t('downloadReceiving'), progress);
-    });
-    const d = dl.contentDisposition || '';
-    const m=d.match(/filename\*=UTF-8''([^;]+)/i) || d.match(/filename="([^"]+)"/i);
-    const name=decodeURIComponent((m&&m[1])?m[1]:(`${title||('wallpaper-'+fid)}.bin`));
-    const blob = dl.blob;
-    progress = Math.max(progress, 99);
-    setSubBtnProgress(btn, '✅', t('btnDownloaded'), 100);
-    const u=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=u;
-    a.download=name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(u),1500);
-    toast(t('downloadStarted', { name }), 'ok');
-    if(btn){
-      btn.classList.remove('dling');
-      btn.classList.add('done');
-    }
-  } catch(e){
-    const userMsg = normalizeDownloadError(e);
-    if (userMsg) toast(t('downloadFailed', { msg: userMsg }), 'warn');
-    if(btn){
-      btn.classList.remove('dling');
-      btn.classList.remove('progressing');
-      btn.style.removeProperty('--dl-progress');
-      btn.innerHTML=`<i>⚠</i> ${t('btnFailed')}`;
-    }
-  } finally {
-    clearInterval(tick);
-    activeDownloads.delete(key);
+    }, 1800);
   }
+  
+  fetch(`/api/download?id=${fid}&title=${encodeURIComponent(title||'')}`)
+    .then(async r => {
+      if(!r.ok){
+        let msg = `HTTP ${r.status}`;
+        try{
+          const j = await r.json();
+          msg = j.error || msg;
+        }catch{}
+        throw new Error(msg);
+      }
+      // 成功了！直接读取响应，不再解析为 blob 强制下载
+      return r.text(); 
+    })
+    .then(() => {
+      if(packTimer) clearTimeout(packTimer);
+      
+      // 核心修改：不再创建 <a> 标签下载，直接弹窗提示保存成功
+      toast('✅ 文件已成功保存到服务器本地 /downloads 目录', 'ok');
+      
+      if(btn){
+        btn.classList.remove('dling');
+        btn.classList.add('done');
+        btn.innerHTML = `<i>✓</i> ${t('btnDownloaded')}`; // 你也可以把翻译词条改成 "已存入服务器"
+      }
+    })
+    .catch(e => {
+      if(packTimer) clearTimeout(packTimer);
+      toast(t('downloadFailed', { msg: e.message }), 'warn');
+      if(btn){ 
+        btn.classList.remove('dling'); 
+        btn.innerHTML = `<i>⚠</i> ${t('btnFailed')}`; 
+      }
+    });
 }
 
 function getType(item){
