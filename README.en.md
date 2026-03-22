@@ -1,4 +1,4 @@
-# Wallpaper Engine Download Web
+# Wallpaper Engine Download Web Docker
 
 > Download all wallpapers for Wallpaper Engine without logging in.
 
