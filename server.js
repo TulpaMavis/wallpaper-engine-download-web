@@ -21,6 +21,7 @@ const { URL } = require('url');
 const PORT   = process.env.PORT ? parseInt(process.env.PORT) : 3090;
 const PUBLIC = path.join(__dirname, 'public');
 
+const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
 const PERSONA_CACHE = new Map();
 const STEAM_PREF_COOKIE = [
   'birthtime=946684801',
@@ -121,12 +122,49 @@ function readWindowsSystemProxy(protocol) {
     return null;
   }
 }
+
+function readLinuxSystemProxy(protocol) {
+  if (process.platform !== 'linux') return null;
+  try {
+    const isHttps = protocol === 'https:';
+    const proxyEnv = isHttps 
+      ? (process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy)
+      : (process.env.HTTP_PROXY || process.env.http_proxy);
+    
+    console.log('readLinuxSystemProxy', proxyEnv);
+    if (proxyEnv) {
+      return parseProxyUrl(proxyEnv);
+    }
+
+    const gsettings = execFileSync('which', ['gsettings'], { encoding: 'utf8', stdio: 'pipe' }).trim();
+    if (gsettings) {
+      try {
+        const mode = execFileSync('gsettings', ['get', 'org.gnome.system.proxy', 'mode'], { encoding: 'utf8' }).trim();
+        if (mode.includes('manual')) {
+          const httpHost = execFileSync('gsettings', ['get', 'org.gnome.system.proxy.http', 'host'], { encoding: 'utf8' }).trim().replace(/['"]/g, '');
+          const httpPort = parseInt(execFileSync('gsettings', ['get', 'org.gnome.system.proxy.http', 'port'], { encoding: 'utf8' }).trim()) || 8080;
+          
+          if (httpHost && httpPort) {
+            const proxyUrl = `http://${httpHost}:${httpPort}`;
+            return parseProxyUrl(proxyUrl);
+          }
+        }
+      } catch (e) {
+        console.log(e);
+      }
+    }
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
 function resolveProxyForProtocol(protocol) {
   const isHttps = protocol === 'https:';
   const envRaw = isHttps
     ? (process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || process.env.ALL_PROXY || process.env.all_proxy || '')
     : (process.env.HTTP_PROXY || process.env.http_proxy || process.env.ALL_PROXY || process.env.all_proxy || '');
-  return parseProxyUrl(envRaw) || readWindowsSystemProxy(protocol);
+  return parseProxyUrl(envRaw) || readWindowsSystemProxy(protocol) || readLinuxSystemProxy(protocol);
 }
 function proxyAuth(proxy) {
   if (!proxy || !proxy.username) return '';
@@ -191,6 +229,7 @@ function buildUrlFromOpts(opts) {
   const port = opts.port ? `:${opts.port}` : '';
   return `${protocol}//${opts.hostname}${port}${opts.path || '/'}`;
 }
+
 function doRequestByCurl(opts, body, timeout, proxy) {
   return new Promise((resolve, reject) => {
     const url = buildUrlFromOpts(opts);
@@ -214,7 +253,9 @@ function doRequestByCurl(opts, body, timeout, proxy) {
       const payload = Buffer.isBuffer(body) ? body.toString('utf8') : String(body);
       args.push('--data-binary', payload);
     }
-    const cp = spawn('curl.exe', args, { windowsHide: true, env: Object.assign({}, process.env) });
+
+    const curlCommand = process.platform === 'win32' ? 'curl.exe' : 'curl';
+    const cp = spawn(curlCommand, args, { windowsHide: true, env: Object.assign({}, process.env) });
     const chunks = [];
     let err = '';
     cp.stdout.on('data', d => chunks.push(Buffer.from(d)));
@@ -269,7 +310,7 @@ function doRequest(opts, body, redirects, proxyIndex) {
   const proxies = getProxyCandidates(protocol, opts.hostname);
   const proxy = proxies[Math.min(currentProxyIndex, proxies.length - 1)];
   const attemptTimeout = proxy ? Math.min(timeout, 12000) : timeout;
-  if (process.platform === 'win32' && process.env.WALLHUB_DISABLE_CURL_PROXY !== '1') {
+  if (process.env.WALLHUB_DISABLE_CURL_PROXY !== '1') {
     return doRequestByCurlCascade(opts, body, attemptTimeout, proxies, currentProxyIndex);
   }
   return new Promise((resolve, reject) => {
@@ -279,6 +320,7 @@ function doRequest(opts, body, redirects, proxyIndex) {
       }
       reject(err);
     };
+
     const onResponse = (rs) => {
       if (rs.statusCode >= 300 && rs.statusCode < 400 && rs.headers.location) {
         rs.resume();
@@ -312,6 +354,7 @@ function doRequest(opts, body, redirects, proxyIndex) {
       if (body) req.write(body);
       req.end();
     };
+    
     if (!proxy) {
       const mod = protocol === 'http:' ? http : https;
       const req = mod.request({
@@ -342,6 +385,7 @@ function doRequest(opts, body, redirects, proxyIndex) {
       writeEnd(req);
       return;
     }
+    
     const connectHeaders = {};
     if (auth) connectHeaders['Proxy-Authorization'] = auth;
     const connectReq = http.request({
@@ -352,6 +396,7 @@ function doRequest(opts, body, redirects, proxyIndex) {
       headers: connectHeaders,
       timeout: attemptTimeout,
     });
+    
     connectReq.on('connect', (res, socket) => {
       if (res.statusCode !== 200) {
         socket.destroy();
@@ -941,15 +986,13 @@ function mimeFromExt(ext) {
 function ensureDir(p) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
-function removePathSafe(target) {
-  if (!target) return;
-  try {
-    fs.rmSync(target, { recursive: true, force: true });
-  } catch {}
-}
-function runProcess(bin, args, timeoutMs) {
+function runProcess(bin, args, timeoutMs, options = {}) {
   return new Promise((resolve, reject) => {
-    const cp = spawn(bin, args, { windowsHide: true, env: Object.assign({}, process.env) });
+    const spawnOptions = Object.assign({
+      windowsHide: true,
+      env: Object.assign({}, process.env)
+    }, options);
+    const cp = spawn(bin, args, spawnOptions);
     let out = '';
     let err = '';
     const timer = setTimeout(() => {
@@ -977,6 +1020,16 @@ async function resolveSteamCmdPath() {
     'C:\\Program Files (x86)\\SteamCMD\\steamcmd.exe',
     'C:\\Program Files\\SteamCMD\\steamcmd.exe',
   ].filter(Boolean);
+
+  if (process.platform !== 'win32') {
+    candidates.unshift(
+      path.join(__dirname, 'steamcmd', 'steamcmd.sh'),
+      '/usr/bin/steamcmd',
+      '/usr/games/steamcmd',
+      '/usr/local/bin/steamcmd.sh',
+      '/opt/steamcmd/steamcmd.sh'
+    );
+  }
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }
@@ -1035,38 +1088,18 @@ function extractSteamCmdFailure(steamcmdPath, appId, publishedFileId) {
     if (line.includes(`Download item ${item} requested by app`)) { from = i; break; }
   }
   if (from < 0) return '';
-  const window = rows.slice(from, Math.min(rows.length, from + 120));
-  let lastRelated = '';
+  const window = rows.slice(from, Math.min(rows.length, from + 40));
   for (const line of window) {
-    const related = line.includes(`[AppID ${app}]`) || line.includes(`item ${item}`) || line.includes(`item ${item}.`);
-    if (!related) continue;
-    lastRelated = String(line || '').trim();
-    const low = lastRelated.toLowerCase();
-    if (low.includes('result : no connection') || low.includes('failed downloading') || low.includes('no connection') || low.includes('connection was reset') || low.includes('connection reset by peer')) {
+    if (!line.includes(`[AppID ${app}]`)) continue;
+    if (line.includes('result : No Connection') || line.includes('Failed downloading') || line.includes('No connection')) {
       return 'SteamCDN 网络连接失败（No Connection）';
     }
-    if (low.includes('result : access denied') || low.includes('access denied')) {
+    if (line.includes('result : Access Denied')) {
       return 'Steam 返回 Access Denied（权限不足或需要登录账号）';
     }
-    if (low.includes('result : timeout') || low.includes('timed out')) {
+    if (line.includes('result : Timeout')) {
       return 'Steam 下载超时（Timeout）';
     }
-    if (low.includes('failed to initialize depot') || low.includes('failed to init depot') || low.includes('depot') && low.includes('manifest')) {
-      return 'Steam Depot 初始化失败（多为代理链路不稳定或节点不支持）';
-    }
-    if (low.includes('login failure') || low.includes('invalid password') || low.includes('two-factor') || low.includes('steam guard')) {
-      return 'Steam 登录失败（账号凭据或 Steam Guard 校验问题）';
-    }
-    if (low.includes('rate limit') || low.includes('too many') && low.includes('login')) {
-      return 'Steam 登录请求触发频率限制（Rate Limit）';
-    }
-    if (low.includes('requires ownership') || low.includes('not subscribed') || low.includes('insufficient privilege')) {
-      return '该工坊项目受权限限制，匿名账号无法下载';
-    }
-  }
-  if (lastRelated) {
-    const brief = lastRelated.replace(/\s+/g, ' ').slice(0, 160);
-    return `SteamCMD 日志提示: ${brief}`;
   }
   return '';
 }
@@ -1088,21 +1121,54 @@ function pickVideoFile(itemDir) {
 async function zipDir(dirPath, zipPath) {
   ensureDir(path.dirname(zipPath));
   if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-  const cmd = `Compress-Archive -Path '${psQuote(path.join(dirPath, '*'))}' -DestinationPath '${psQuote(zipPath)}' -Force`;
-  await runProcess('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], 180000);
+  await new Promise((resolve, reject) => {
+    const cp = spawn('zip', ['-r', '-q', zipPath, '.'], { cwd: dirPath, env: process.env });
+    let err = '';
+    cp.stderr.on('data', d => err += d.toString());
+    
+    // 增加了缺失的错误捕获，如果没装 zip 会在网页端给你报错提示
+    cp.on('error', e => reject(new Error(`无法执行 zip 命令，请在终端执行 apt-get install zip 安装！(${e.message})`)));
+    
+    cp.on('close', code => {
+      if (code === 0) resolve();
+      else reject(new Error('Zip打包失败: ' + err));
+    });
+  });
 }
 async function ensureSteamCmdReady() {
   const found = await resolveSteamCmdPath();
   if (found) return found;
   const base = path.join(__dirname, 'steamcmd');
-  const zipFile = path.join(base, 'steamcmd.zip');
-  const exeFile = path.join(base, 'steamcmd.exe');
   ensureDir(base);
-  const cmd = `$ProgressPreference='SilentlyContinue';Invoke-WebRequest -UseBasicParsing -Uri 'https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip' -OutFile '${psQuote(zipFile)}';Expand-Archive -Path '${psQuote(zipFile)}' -DestinationPath '${psQuote(base)}' -Force`;
-  await runProcess('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], 240000);
-  if (!fs.existsSync(exeFile)) throw new Error('SteamCMD 自动安装后仍未找到 steamcmd.exe');
-  try { fs.unlinkSync(zipFile); } catch {}
-  return exeFile;
+  
+  if (process.platform === 'win32') {
+    const zipFile = path.join(base, 'steamcmd.zip');
+    const exeFile = path.join(base, 'steamcmd.exe');
+    const cmd = `$ProgressPreference='SilentlyContinue';Invoke-WebRequest -UseBasicParsing -Uri 'https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip' -OutFile '${psQuote(zipFile)}';Expand-Archive -Path '${psQuote(zipFile)}' -DestinationPath '${psQuote(base)}' -Force`;
+    await runProcess('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], 240000);
+    if (!fs.existsSync(exeFile)) throw new Error('SteamCMD 自动安装后仍未找到 steamcmd.exe');
+    try { fs.unlinkSync(zipFile); } catch {}
+    return exeFile;
+  } else {
+    try {
+      if (process.platform === 'linux') {
+        const steamcmdSh = path.join(base, 'steamcmd.sh');
+        if (!fs.existsSync(steamcmdSh)) {
+          const downloadCmd = `curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C '${psQuote(base)}'`;
+          await runProcess('sh', ['-c', downloadCmd], 240000);
+        }
+        
+        if (fs.existsSync(steamcmdSh)) {
+          await runProcess('chmod', ['+x', steamcmdSh], 5000);
+          return steamcmdSh;
+        }
+      }
+    } catch (e) {
+      console.warn('Linux SteamCMD 自动安装失败:', e.message);
+    }
+
+    throw new Error('未找到 SteamCMD。请在 Linux 上手动安装 SteamCMD:\n1. sudo apt install steamcmd (Ubuntu/Debian)\n2. 或从 https://developer.valvesoftware.com/wiki/SteamCMD#Linux 下载并解压到 steamcmd/ 目录');
+  }
 }
 function resolveLocalAccount(appId) {
   const candidates = [
@@ -1133,29 +1199,46 @@ async function downloadViaSteamCmd(publishedFileId, appId, title, options) {
   const envPass = String(process.env.STEAM_PASSWORD || '').trim();
   const localAcc = (!envUser || !envPass) ? resolveLocalAccount(appId) : null;
   const user = envUser || (localAcc && localAcc.user) || '';
-  const pass = envPass || (localAcc && localAcc.pass) || '';
+  const pass = envPass || (localAcc && localAcc.pass) || ''; 
+
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wallhub-steamcmd-'));
   let itemDir = path.join(tempRoot, 'steamapps', 'workshop', 'content', String(appId), String(publishedFileId));
+  
   const attempts = [];
-  if (user && pass) attempts.push({ name: 'account', loginArgs: ['+login', user, pass] });
-  attempts.push({ name: 'anonymous', loginArgs: ['+login', 'anonymous'] });
+  
+  if (user) {
+    // 优先尝试 1：仅使用账号登录（利用本地缓存，免去手机确认弹窗）
+    attempts.push({ name: 'account_cached', loginArgs: ['+login', user] });
+    
+    if (pass) {
+      // 备用尝试 2：如果缓存失效或首次运行，使用带密码登录（会触发手机 Steam 确认请求）
+      attempts.push({ name: 'account_password', loginArgs: ['+login', user, pass] });
+    }
+  } else {
+    // 默认尝试：如果没有配置账号，说明是打算白嫖免费工坊，直接匿名下载
+    attempts.push({ name: 'anonymous', loginArgs: ['+login', 'anonymous'] });
+  }
+  
   let lastErr = '';
   const variants = [
     { name: 'normal', itemArgs: ['+workshop_download_item', String(appId), String(publishedFileId)] },
     { name: 'validate', itemArgs: ['+workshop_download_item', String(appId), String(publishedFileId), 'validate'] },
   ];
+  
   for (const at of attempts) {
     for (const variant of variants) {
       try {
         const args = [
           '+@ShutdownOnFailedCommand', '1',
-          '+@NoPromptForPassword', '1',
+          '+@NoPromptForPassword', '1',  // 关键：缓存失效时让它直接报错，而不是卡住等控制台输入
           '+force_install_dir', tempRoot,
           ...at.loginArgs,
           ...variant.itemArgs,
           '+quit',
         ];
-        await runProcess(steamcmd, args, 300000);
+        // 给足超时时间，因为遇到 account_password 阶段时需要等你掏出手机点确认
+        await runProcess(steamcmd, args, 300000); 
+        
         const discovered = findWorkshopItemDir(tempRoot, appId, publishedFileId);
         if (discovered && fs.existsSync(discovered)) {
           const files = fs.readdirSync(discovered);
@@ -1174,35 +1257,28 @@ async function downloadViaSteamCmd(publishedFileId, appId, title, options) {
     }
     if (fs.existsSync(itemDir) && fs.readdirSync(itemDir).length) break;
   }
+  
   if (!fs.existsSync(itemDir)) throw new Error(lastErr || 'SteamCMD 执行完成但未产出工坊文件目录');
   if (!fs.readdirSync(itemDir).length) {
-    throw new Error(user && pass
+    throw new Error(user 
       ? `SteamCMD 未下载到文件（${lastErr}）`
       : `匿名下载失败（${lastErr}），请设置 STEAM_USERNAME/STEAM_PASSWORD 继续`);
   }
+  
   const wantVideoOnly = !!(options && options.videoOnly);
   if (wantVideoOnly) {
     const videoPath = pickVideoFile(itemDir);
     if (videoPath) {
       const videoExt = extFromPath(videoPath, '.mp4');
       const videoName = `${safeName(title || `Wallpaper ${publishedFileId}`)}-${publishedFileId}${videoExt}`;
-      return {
-        kind: 'file',
-        filePath: videoPath,
-        fileName: videoName,
-        cleanup: () => removePathSafe(tempRoot),
-      };
+      return { kind: 'file', filePath: videoPath, fileName: videoName };
     }
   }
+  
   const zipName = `${safeName(title || `Wallpaper ${publishedFileId}`)}-${publishedFileId}.zip`;
-  const zipPath = path.join(tempRoot, zipName);
-  await zipDir(itemDir, zipPath);
-  return {
-    kind: 'zip',
-    zipPath,
-    zipName,
-    cleanup: () => removePathSafe(tempRoot),
-  };
+  const zipPath = path.join(DOWNLOAD_DIR, zipName);
+  await zipDir(itemDir, zipPath); // 这一步调用我们上面修好的 zipDir
+  return { kind: 'zip', zipPath, zipName };
 }
 async function handleDownload(res, id, title) {
   const wantId = parseInt(id);
@@ -1215,67 +1291,52 @@ async function handleDownload(res, id, title) {
     return jsonRes(res, 502, { error: `Steam detail error: ${e.message}` });
   }
   if (!d) return jsonRes(res, 404, { error: '壁纸不存在或不可见' });
+
+  // 确保服务器本地的下载目录存在 (DOWNLOAD_DIR 在代码前面已经定义好了)
+  ensureDir(DOWNLOAD_DIR);
+
   const sourceUrl = String(d.file_url || '').trim();
   const appId = parseInt(d.consumer_appid || d.consumer_app_id || d.appid || 431960) || 431960;
   const isVideo = detectVideoTag(d);
+
   if (!sourceUrl) {
+    // 方案 1：走 SteamCMD 下载
     try {
       const downloaded = await downloadViaSteamCmd(wantId, appId, title || d.title, { videoOnly: isVideo });
-      let cleaned = false;
-      const cleanup = () => {
-        if (cleaned) return;
-        cleaned = true;
-        try { downloaded.cleanup && downloaded.cleanup(); } catch {}
-      };
       if (downloaded.kind === 'file') {
-        const st = fs.statSync(downloaded.filePath);
-        const ext = extFromPath(downloaded.filePath, '.mp4');
-        res.writeHead(200, {
-          'Content-Type': mimeFromExt(ext),
-          'Content-Length': String(st.size),
-          'Content-Disposition': `attachment; filename="${encodeURIComponent(downloaded.fileName)}"; filename*=UTF-8''${encodeURIComponent(downloaded.fileName)}`,
-          'Cache-Control': 'no-store',
-        });
-        const rs = fs.createReadStream(downloaded.filePath);
-        rs.on('error', () => cleanup());
-        res.on('close', cleanup);
-        res.on('finish', cleanup);
-        rs.pipe(res);
+        // 单个视频文件原先在临时目录，现在把它复制到 downloads 文件夹
+        const finalPath = path.join(DOWNLOAD_DIR, downloaded.fileName);
+        fs.copyFileSync(downloaded.filePath, finalPath);
+        
+        // 告诉前端：搞定了，存在服务器了
+        return jsonRes(res, 200, { success: true, message: '已保存到服务器本地', path: finalPath });
       } else {
-        const st = fs.statSync(downloaded.zipPath);
-        res.writeHead(200, {
-          'Content-Type': 'application/zip',
-          'Content-Length': String(st.size),
-          'Content-Disposition': `attachment; filename="${encodeURIComponent(downloaded.zipName)}"; filename*=UTF-8''${encodeURIComponent(downloaded.zipName)}`,
-          'Cache-Control': 'no-store',
-        });
-        const rs = fs.createReadStream(downloaded.zipPath);
-        rs.on('error', () => cleanup());
-        res.on('close', cleanup);
-        res.on('finish', cleanup);
-        rs.pipe(res);
+        // Zip 压缩包（原来的代码已经把它生成在 DOWNLOAD_DIR 里了，直接返回成功即可）
+        return jsonRes(res, 200, { success: true, message: '已保存到服务器本地', path: downloaded.zipPath });
       }
-      return;
     } catch (e) {
       return jsonRes(res, 409, { error: `该创意工坊项目无直链，且SteamCMD方案失败: ${e.message}` });
     }
   }
+
+  // 方案 2：有直链，直接用代码去抓
   let bin;
   try {
     bin = await GET(sourceUrl, { 'Accept': '*/*', 'Referer': `https://steamcommunity.com/sharedfiles/filedetails/?id=${wantId}` }, 30000);
   } catch (e) {
     return jsonRes(res, 502, { error: `下载源请求失败: ${e.message}` });
   }
+
   const itemTitle = safeName(title || d.title || `Wallpaper ${wantId}`) || `Wallpaper ${wantId}`;
   const ext = extFromUrl(sourceUrl, '.dat');
   const fileName = `${itemTitle}-${wantId}${ext}`;
-  res.writeHead(200, {
-    'Content-Type': mimeFromExt(ext),
-    'Content-Length': String(bin.length),
-    'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
-    'Cache-Control': 'no-store',
-  });
-  res.end(bin);
+  const finalPath = path.join(DOWNLOAD_DIR, fileName);
+
+  // 将抓到的二进制数据写入服务器本地硬盘，而不是发给浏览器
+  fs.writeFileSync(finalPath, bin);
+
+  // 返回 JSON 提示成功
+  return jsonRes(res, 200, { success: true, message: '已保存到服务器本地', path: finalPath });
 }
 
 // ─────────────────────────────────────────────────────────────────
