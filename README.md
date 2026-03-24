@@ -4,18 +4,14 @@
 注：此项目根据其他项目二创，也有参考其分支
 
 #https://github.com/0ran/wallpaper-engine-download-web
-
 #https://github.com/dfshfghj/wallpaper-engine-download-web
-
 #https://github.com/ChEnLeo-7/Wallpaper-Engine-Webview/tree/main
 
 ## 项目简介
 
-本项目是一个基于 Web 的 Steam 创意工坊下载工具，专为 Wallpaper Engine 设计。它通过网页界面提供壁纸搜索和下载功能。
-
-根据自己需求二创，使用有些门槛，首先必须要有 Steam 账号并购买了 Wallpaper Engine ，其次有NAS之类的设备用来跑docker。
-
-二创的目标就是简化我原本的使用流程，达到NAS下载，并推流给其他设备观看。
+#本项目是一个基于 Web 的 Steam 创意工坊下载工具，专为 Wallpaper Engine 设计。它通过网页界面提供壁纸搜索和下载功能。
+#根据自己需求二创，使用有些门槛，首先必须要有 Steam 账号并购买了 Wallpaper Engine ，其次有NAS之类的设备用来跑docker。
+#二创的目标就是简化我原本的使用流程，达到NAS下载，并推流给其他设备观看。
 
 ## 核心特点
 
