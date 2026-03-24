@@ -1,86 +1,40 @@
-# Wallpaper Engine 创意工坊下载工具Docker版
+# Wallpaper Engine 下载工具Docker版
 
-> 免登录下载 Wallpaper Engine 创意工坊壁纸。
-
-<p align="center">
-  <a href="./README.en.md">English</a>
-   · 
-  <a href="./README.md">简体中文</a>
-</p>
-
-## 郑重提示
-注：根据用户使用猖獗性而定，如有必要后期只留视频下载选项 如非必要则保持现状。
-【本项目仅应急娱乐使用 不要视作为破解的理由】
-
-## 项目徽章
-
-[![version](https://img.shields.io/badge/version-2.0.0-3fb950?style=flat-square)](https://semver.org/)
-[![node](https://img.shields.io/badge/node-%3E%3D16-43853d?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![runtime](https://img.shields.io/badge/runtime-Node.js-5fa04e?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/en/about)
-[![downloader](https://img.shields.io/badge/downloader-SteamCMD-1b2838?style=flat-square&logo=steam&logoColor=white)](https://developer.valvesoftware.com/wiki/SteamCMD)
-[![frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-f7df1e?style=flat-square&logo=javascript&logoColor=000)](https://developer.mozilla.org/docs/Web/JavaScript)
-[![dependency](https://img.shields.io/badge/dependency-zero-0ea5e9?style=flat-square)](https://nodejs.org/docs/latest/api/)
-
-## 技术栈展示
-
-<p>
-  <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer"><img src="https://skillicons.dev/icons?i=nodejs" alt="Node.js" /></a>
-  <a href="https://developer.valvesoftware.com/wiki/SteamCMD" target="_blank" rel="noopener noreferrer"><img src="https://cdn.simpleicons.org/steam/ffffff" alt="SteamCMD" width="48" height="48" /></a>
-  <a href="https://developer.mozilla.org/" target="_blank" rel="noopener noreferrer"><img src="https://skillicons.dev/icons?i=js,html,css" alt="JavaScript, HTML, CSS" /></a>
-</p>
+## 二创说明
+注：此项目根据其他项目二创，也有参考其分支
+https://github.com/0ran/wallpaper-engine-download-web
+https://github.com/dfshfghj/wallpaper-engine-download-web
+https://github.com/ChEnLeo-7/Wallpaper-Engine-Webview/tree/main
 
 ## 项目简介
 
 本项目是一个基于 Web 的 Steam 创意工坊下载工具，专为 Wallpaper Engine 设计。它通过网页界面提供壁纸搜索和下载功能。
-
-**核心优势**：利用 **SteamCMD** 的匿名登录特性，无需登录个人 Steam 账号即可下载大部分公开的壁纸资源。
+根据自己需求二创，使用有些门槛，首先必须要有 Steam 账号并购买了 Wallpaper Engine ，其次有NAS之类的设备用来跑docker。
+二创的目标就是简化我原本的使用流程，达到NAS下载，并推流给其他设备观看。
 
 ## 核心特点
 
-- **免登录下载**：通过 SteamCMD 匿名模式获取资源，保护隐私。
-- **智能解析**：自动抓取创意工坊页面，提取 FileID 和元数据。
+- **智能解析**：通过 API 抓取创意工坊页面，提取 FileID 和元数据。（API比网页创意工坊资源全，创意工坊有说明的）
 - **自动打包规则**：
   - **场景/程序/网页类壁纸**：下载后自动打包为 `.zip` 压缩包，解压即可使用。
   - **视频类壁纸**：直接提取原始视频文件（.mp4等），下载后可直接播放。
-- **零依赖构建**：仅使用 Node.js 原生模块，无需 `npm install`，开箱即用。
-
-## 截图展示
-
-<img width="1573" height="1142" alt="123123123" src="https://github.com/user-attachments/assets/624f6abe-1fd6-4ffe-afb4-b93a40ead201" />
-</br>
-<img width="1573" height="1351" alt="SnowShot_2026-03-08_13-57-40" src="https://github.com/user-attachments/assets/6903ac0e-3bcc-4f1e-9446-c3b2e0f65ca1" />
-</br></br>
-<img width="32%" height="1223" alt="333" src="https://github.com/user-attachments/assets/397b907a-b7fc-4b3c-b5da-0580b948e342" />
-<img width="32%" height="1223" alt="444" src="https://github.com/user-attachments/assets/a3fe9cce-d0d4-4559-8511-1c52d3a9759e" />
-<img width="32%" height="1224" alt="SnowShot_2026-03-08_13-54-12" src="https://github.com/user-attachments/assets/9f789a17-bbf1-4013-a72b-94036fe345fe" />
-</br></br>
-<img width="32%" height="1223" alt="111" src="https://github.com/user-attachments/assets/2882fcd9-023f-4952-bf9b-18e624f79e3c" />
-<img width="32%" height="1223" alt="222" src="https://github.com/user-attachments/assets/36db3d9b-1074-4b9a-bc73-d405e21d5964" />
-<img width="32%" height="1223" alt="555" src="https://github.com/user-attachments/assets/635a22c1-258a-469c-95fb-0cf00185892a" />
-
-## 技术架构
-
-- **运行环境**：Node.js (>=16)
-- **核心下载器**：[SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) (Valve 官方命令行工具)
-- **前端**：原生 JavaScript (无框架)
-- **后端**：Node.js 原生 `http` 模块
+- **零依赖构建**：自动编译成docker镜像，开箱即用。
 
 ## 前置要求
 
-1. **Node.js**：请确保设备已安装 Node.js (v16 或更高版本)。
-2. **网络访问（按地区）**：是否需要代理取决于你的网络环境。若你所在地区可直连 Steam 创意工坊，则无需代理；若访问受限，再开启系统代理或配置代理环境变量。
-3. **SteamCMD**：程序启动时会自动尝试查找或下载 SteamCMD。如果失败，请检查网络或手动下载 SteamCMD 放入 `steamcmd` 目录。
+1. **Docker**：能跑Docker的设备。
+2. **网络访问（按地区）**：是否需要代理取决于你的网络环境。若你所在地区可直连 Steam 创意工坊，则无需代理；若访问受限，再开启系统代理或配置代理环境变量。（AI说steamcmd下载就是直连的，不走代理，不知真假。我自己测试下来，浏览列表走的代理，下载还是直连的，没吃我流量）
+3. **SteamCMD**：程序启动时会自动尝试查找或下载 SteamCMD。如果失败，请检查网络或手动下载 SteamCMD 放入。
 
 ## 启动方式
 
 1. **下载**本项目代码。  
-   本项目必须依赖 Node.js 运行环境。  
+   下载wallpaper-webview.zip后解压。  
 
 2. **启动服务**：
-   ```bash
-   node server.js
-   ```
-3. **访问网页**：在浏览器打开 `http://localhost:3090` (或控制台显示的地址)。
+   是修改文件夹内的docker-compose.yml后直接运行docker。
+
+3. **访问网页**：在浏览器打开 `http://IP（运行Docker的IP）:3090`。
 
 ## 高级配置 (可选)
 
@@ -90,26 +44,43 @@
 |----------|-------------|---------|
 | `PORT` | 服务端口 | `3090` |
 | `HTTP_PROXY` | 代理地址 (如 `http://127.0.0.1:7890`) | 自动读取系统代理 |
-| `STEAM_USERNAME` | Steam 账号 (当匿名下载失败时使用) | - |
+| `STEAM_USERNAME` | Steam 账号 | - |
 | `STEAM_PASSWORD` | Steam 密码 | - |
+| `STEAM_API_KEY` | API KEY （获取连接：https://steamcommunity.com/dev/apikey） | 通过账号访问wallpaper列表，比创意工坊网页版全~ |
 | `STEAM_COUNTRY` | 商店地区代码 | - |
 | `STEAM_LANG` | 语言设置 | `schinese` |
 
-> **注意**：虽然本工具主打免登录，但部分壁纸可能强制要求拥有 Wallpaper Engine 或登录账号才能下载。遇到此类情况，你可以尝试配置账号密码（风险自负）。
+## 二创声明
 
-## 星标历史
-
-[![Star History Chart](https://api.star-history.com/svg?repos=0ran/wallpaper-engine-download-web&type=Date)](https://star-history.com/#0ran/wallpaper-engine-download-web&Date)
-
-
-## 开发声明
-
-本项目全程依托人工智能辅助完成构建。发布者未审阅、未编写任何一行代码内容；若与其他项目存在代码雷同，均属巧合。仅供学习交流使用。
-
-## 分支声明
-
+二创项目全程依托人工智能辅助完成构建。发布者未审阅、未编写任何一行代码内容；若与其他项目存在代码雷同，均属巧合。仅供学习交流使用。
 新手，啥也不会，都AI改的，好歹docker能跑了。
-修改docker-compose.yml文件，然后直接docker-compose up -d就好。
 我在FNOS下跑成功了，我只测试了账号登入。（steamcmd第一次登入要手机验证，登入信息记录在/root/Steam中后续一般不用再次验证）
-对比了下壁纸还是没有软件上看到的全啊~不知道有没有办法解决。
-网络条件不行的必须的开代理，流量啊，Watt Toolkit上Hosts代理就能正常连接，不清楚原理，完全不懂，不知道能不能用在docker上，看有没有大佬能弄吧。
+壁纸终于全了，网络条件不行的必须的开代理，因为用的API，走api的网址，我测试时不挂代理也能是不是连上，稳妥起见还是挂上吧，反正下载直连，就还好。
+这个项目本只是简化我自己的使用，之前是 电脑订阅>右键文件管理>复制到NAS>取消订阅>NAS推流给手机 ，现在直接是 NAS下载>推流给手机 ，流程简化太多了。
+随手用AI改的基本不会更新。
+
+## 声明
+1. **非官方工具**：本工具是**第三方非官方工具**，与 Wallpaper Engine 官方、Steam 或 Valve 公司**无任何关联**。
+2. **仅限个人使用**：本工具**仅供个人学习、研究和技术交流使用**，不得用于任何商业用途。
+
+3. **尊重版权**：所有创意工坊内容版权均归原作者所有。请：
+   - 仅下载您**已订阅**或**有权访问**的内容
+   - 不得**传播、分发**下载的内容
+   - 支持原创作者，在 Steam 上**订阅和点赞**喜欢的壁纸
+
+4. **自用原则**：本工具仅为**简化个人下载流程**而开发。使用本工具意味着您**承诺**：
+   - 仅下载**自己订阅**的壁纸
+   - 不进行**批量下载**或**爬取**
+   - 不**绕过任何付费限制**
+
+5. **使用风险**：使用本工具可能违反 Steam 服务条款。您需自行承担所有风险，开发者**不承担任何责任**。
+
+6. **禁止滥用**：**严禁**使用本工具：
+   - 下载受版权保护且未授权的内容
+   - 进行商业用途
+   - 侵犯他人知识产权
+   - 违反当地法律法规
+
+7. **停止使用**：如您不同意以上条款，**请立即停止使用本工具**。
+
+*本项目仅为技术演示，下载后请在24小时内删除，并支持正版。*
