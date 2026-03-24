@@ -3,13 +3,17 @@
 ## 二创说明
 注：此项目根据其他项目二创，也有参考其分支
 https://github.com/0ran/wallpaper-engine-download-web
+
 https://github.com/dfshfghj/wallpaper-engine-download-web
+
 https://github.com/ChEnLeo-7/Wallpaper-Engine-Webview/tree/main
 
 ## 项目简介
 
 本项目是一个基于 Web 的 Steam 创意工坊下载工具，专为 Wallpaper Engine 设计。它通过网页界面提供壁纸搜索和下载功能。
+
 根据自己需求二创，使用有些门槛，首先必须要有 Steam 账号并购买了 Wallpaper Engine ，其次有NAS之类的设备用来跑docker。
+
 二创的目标就是简化我原本的使用流程，达到NAS下载，并推流给其他设备观看。
 
 ## 核心特点
@@ -53,10 +57,15 @@ https://github.com/ChEnLeo-7/Wallpaper-Engine-Webview/tree/main
 ## 二创声明
 
 二创项目全程依托人工智能辅助完成构建。发布者未审阅、未编写任何一行代码内容；若与其他项目存在代码雷同，均属巧合。仅供学习交流使用。
+
 新手，啥也不会，都AI改的，好歹docker能跑了。
+
 我在FNOS下跑成功了，我只测试了账号登入。（steamcmd第一次登入要手机验证，登入信息记录在/root/Steam中后续一般不用再次验证）
+
 壁纸终于全了，网络条件不行的必须的开代理，因为用的API，走api的网址，我测试时不挂代理也能是不是连上，稳妥起见还是挂上吧，反正下载直连，就还好。
+
 这个项目本只是简化我自己的使用，之前是 电脑订阅>右键文件管理>复制到NAS>取消订阅>NAS推流给手机 ，现在直接是 NAS下载>推流给手机 ，流程简化太多了。
+
 随手用AI改的基本不会更新。
 
 ## 声明
