@@ -46,7 +46,7 @@
 | `HTTP_PROXY` | 代理地址 (如 `http://127.0.0.1:7890`) | 自动读取系统代理 |
 | `STEAM_USERNAME` | Steam 账号 | - |
 | `STEAM_PASSWORD` | Steam 密码 | - |
-| `STEAM_API_KEY` | 通过API[（获取连接）](https://steamcommunity.com/dev/apikey)账号访问wallpaper，列表更全 | - |
+| `STEAM_API_KEY` | 通过API[获取连接](https://steamcommunity.com/dev/apikey)访问wallpaper，列表更全 | - |
 | `STEAM_COUNTRY` | 商店地区代码 | - |
 | `STEAM_LANG` | 语言设置 | `schinese` |
 
