@@ -179,7 +179,7 @@ function checkSteamPersistentLogin() {
 
 // 初始化时检测持久化登录
 function initializeSteamCredentials() {
-  // 🌟 新增：优先从我们自己的 settings 中读取持久化状态，彻底解决 Docker 重启丢失的问题
+  // 优先从我们自己的 settings 中读取持久化状态，彻底解决 Docker 重启丢失的问题
   if (VIDEO_CACHE_SETTINGS.steamUsername && VIDEO_CACHE_SETTINGS.steamIsPersistent) {
     STEAM_CREDENTIALS.username = VIDEO_CACHE_SETTINGS.steamUsername;
     STEAM_CREDENTIALS.isPersistent = true;
@@ -682,7 +682,7 @@ async function scrapeIds(params) {
   const appId   = params.appid || 431960;
   let url = '';
 
-  // 🌟 新增：如果是按作者查询，直接转到该作者的创意工坊主页
+  // 如果是按作者查询，直接转到该作者的创意工坊主页
   if (params.creator) {
     url = `https://steamcommunity.com/profiles/${params.creator}/myworkshopfiles/?appid=${appId}&p=${page}&numperpage=${params.numperpage || 30}`;
   } else {
@@ -841,7 +841,7 @@ function buildSteamApiQueryFields(params, singleGenreTag) {
 }
 
 async function queryWorkshopBySteamApi(apiKey, params, genreOr) {
-  // 🌟 新增：如果传了作者，直接调用专用的 GetUserFiles API
+  // 如果传了作者，直接调用专用的 GetUserFiles API
   if (params.creator) {
     const qsUser = [
       `key=${apiKey}`, `steamid=${params.creator}`, `appid=${params.appid || 431960}`,
@@ -1315,13 +1315,13 @@ function runProcess(bin, args, timeoutMs, options = {}) {
     // 进度与速度计算变量
     let lastBytes = 0;
     let lastTime = Date.now();
-    let streamBuffer = ''; // 🌟 新增：用于缓冲被截断的输出流
+    let streamBuffer = ''; // 用于缓冲被截断的输出流
 
     cp.stdout.on('data', d => {
       const chunk = d.toString();
       out += chunk;
       
-      // 🌟 加强版：实时解析 SteamCMD 进度日志，防止数据块截断导致匹配失败
+      // 实时解析 SteamCMD 进度日志，防止数据块截断导致匹配失败
       if (ACTIVE_TASK && ACTIVE_TASK.status === 'downloading') {
         streamBuffer += chunk;
         // 使用 matchAll 获取这段缓冲区里最新的一次进度
@@ -1679,7 +1679,7 @@ async function downloadViaSteamCmd(publishedFileId, appId, title, options) {
           const maxRetries = 10; // 自动重试次数
           let success = false;
           
-          // 🌟 修复：既然 SteamCMD 不肯输出进度，我们就直接轮询底层下载文件夹的物理大小！
+          // 轮询底层下载文件夹的物理大小
           let progressTimer = null;
           if (options && options.task) {
             const dlDir = path.join(tempRoot, 'steamapps', 'workshop', 'downloads', String(appId), String(publishedFileId));
@@ -1871,7 +1871,7 @@ async function handleDownload(res, id, title) {
   const task = {
     id: wantId, appId: appId, title: itemTitle, isVideo: isVideo, sourceUrl: sourceUrl,
     status: 'pending', progress: 0, speed: 0, downloaded: 0, 
-    total: parseInt(d.file_size) || 0, // 🌟 修复：提前把壁纸的真实总大小存入队列
+    total: parseInt(d.file_size) || 0, // 把壁纸的真实总大小存入队列
     errorMsg: '', addTime: Date.now()
   };
   TASK_QUEUE.push(task);
@@ -1880,7 +1880,7 @@ async function handleDownload(res, id, title) {
   return jsonRes(res, 200, { success: true, message: '已加入下载队列，请在队列面板查看进度' });
 }
 
-// 🌟 异步后台下载循环引擎
+// 异步后台下载循环引擎
 async function triggerQueue() {
   if (queueProcessorRunning) return;
   queueProcessorRunning = true;
@@ -1999,7 +1999,7 @@ async function handleSteamLogin(req, res) {
       STEAM_CREDENTIALS.steamGuardCode = '';
       STEAM_CREDENTIALS.isPersistent = true; // 标记为持久化登录
 
-      // 🌟 新增：将账号存入本地 cache-settings.json，防止 Docker 重启后失忆
+      // 将账号存入本地 cache-settings.json，防止 Docker 重启后失忆
       VIDEO_CACHE_SETTINGS.steamUsername = username;
       VIDEO_CACHE_SETTINGS.steamIsPersistent = true;
       saveCacheSettings();
@@ -2066,7 +2066,7 @@ async function handleSteamLogin(req, res) {
     STEAM_CREDENTIALS.steamGuardCode = '';
     STEAM_CREDENTIALS.isPersistent = true; // 标记为持久化登录
 
-    // 🌟 新增：将账号存入本地 cache-settings.json，防止 Docker 重启后失忆
+    // 将账号存入本地 cache-settings.json，防止 Docker 重启后失忆
     VIDEO_CACHE_SETTINGS.steamUsername = username;
     VIDEO_CACHE_SETTINGS.steamIsPersistent = true;
     saveCacheSettings();
@@ -2126,7 +2126,7 @@ async function handleSteamLogout(req, res) {
   STEAM_CREDENTIALS.steamGuardCode = '';
   STEAM_CREDENTIALS.isPersistent = false;
 
-  // 🌟 新增：同步清除本地设置中的账号
+  // 同步清除本地设置中的账号
   VIDEO_CACHE_SETTINGS.steamUsername = '';
   VIDEO_CACHE_SETTINGS.steamIsPersistent = false;
   saveCacheSettings();
