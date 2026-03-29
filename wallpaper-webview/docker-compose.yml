@@ -15,5 +15,5 @@ services:
       - /downloads:/app/downloads
     environment:
       # 代理
-      - HTTP_PROXY=
-      - HTTPS_PROXY=
+      #- HTTP_PROXY=
+      #- HTTPS_PROXY=
