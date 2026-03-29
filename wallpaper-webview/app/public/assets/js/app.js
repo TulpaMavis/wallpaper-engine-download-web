@@ -645,7 +645,7 @@ function buildParams(){
   return params;
 }
 
-// 🌟 新增：全局作者搜索跳转函数（放在 buildParams 下面即可）
+// 全局作者搜索跳转函数
 function searchByCreator(creatorId) {
   if (!creatorId) return;
   closeModal(); // 关闭详情弹窗
