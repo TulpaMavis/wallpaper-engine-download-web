@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WE · Steam 壁纸工坊</title>
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">Wallpaper Engine <span>Hub</span></div>
+  <div class="search-wrap">
+    <input class="search-input" type="text" id="searchInput" placeholder="搜索壁纸名称..." autocomplete="off">
+    <button class="search-btn" id="searchBtn" title="搜索" aria-label="搜索">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    </button>
+  </div>
+  <div class="header-actions">
+    <div class="actions-main">
+      <button class="head-theme-btn" id="themeBtn" title="切换主题" aria-label="切换主题" onclick="toggleTheme()">
+        <svg class="theme-icon sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg class="theme-icon moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <button class="head-settings-btn" id="settingsBtn" title="设置" aria-label="设置">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m9.25 22l-.4-3.2q-.325-.125-.612-.3t-.563-.375L4.7 19.375l-2.75-4.75l2.575-1.95Q4.5 12.5 4.5 12.338v-.675q0-.163.025-.338L1.95 9.375l2.75-4.75l2.975 1.25q.275-.2.575-.375t.6-.3l.4-3.2h5.5l.4 3.2q.325.125.613.3t.562.375l2.975-1.25l2.75 4.75l-2.575 1.95q.025.175.025.338v.674q0 .163-.05.338l2.575 1.95l-2.75 4.75l-2.95-1.25q-.275.2-.575.375t-.6.3l-.4 3.2zm2.8-6.5q1.45 0 2.475-1.025T15.55 12t-1.025-2.475T12.05 8.5q-1.475 0-2.488 1.025T8.55 12t1.013 2.475T12.05 15.5"/></svg>
+      </button>
+      <button class="head-settings-btn" id="queueBtn" style="position:relative;" title="下载队列" aria-label="下载队列">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span id="queueBadge" class="badge" style="display:none; position:absolute; top:-5px; right:-5px; background:var(--danger)">0</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="fg" id="sortGrp">
+    <span class="fl">排序依据</span>
+    <select class="sel" id="sortSel">
+      <option value="trend">最热门</option>
+      <option value="mostrecent">最近</option>
+      <option value="mostvotes">最多投票</option>
+      <option value="totaluniquesubscribers">最多订阅</option>
+    </select>
+  </div>
+  <!-- 时间：仅最热门时显示 -->
+  <div class="fg" id="daysGrp">
+    <span class="fl">时间排序</span>
+    <select class="sel" id="daysSel">
+      <option value="1">今天</option>
+      <option value="7" selected>一周</option>
+      <option value="30">一个月</option>
+      <option value="90">三个月</option>
+      <option value="180">半年</option>
+      <option value="365">一年</option>
+      <option value="0">有史以来</option>
+    </select>
+  </div>
+  <div class="fdiv"></div>
+  <div class="fg" id="typeGrp">
+    <span class="fl">类型选择</span>
+    <select class="sel" id="typeSel">
+      <option value="">全部</option>
+      <option value="Scene">场景</option>
+      <option value="Video" selected>视频</option>
+      <option value="Web">网站</option>
+      <option value="Application">应用</option>
+    </select>
+  </div>
+  <div class="fg" id="ratingGrp">
+    <span class="fl">年龄评级</span>
+    <select class="sel" id="ratingSel">
+      <option value="">全部</option>
+      <option value="Everyone">大众级</option>
+      <option value="Questionable">家长指导级</option>
+      <option value="Mature">限制成人级</option>
+    </select>
+  </div>
+  <button class="filter-btn" id="filterBtn" onclick="openSB()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+    筛选 <span class="badge" id="fbadge">0</span>
+  </button>
+</div>
+
+<!-- Sidebar -->
+<div class="sb-ov" id="sbOv" onclick="closeSB()"></div>
+<aside class="sidebar" id="sb">
+  <div class="sb-head">
+    <div class="sb-title">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      Genre 类型筛选
+    </div>
+    <button class="xbtn" onclick="closeSB()">×</button>
+  </div>
+  <div class="sb-body">
+    <div class="sb-sec">
+      <div class="genre-grid" id="genreGrid"></div>
+    </div>
+  </div>
+  <div class="sb-foot">
+    <button class="btn-s" id="genreToggleBtn" onclick="toggleGenresAll()">清除</button>
+    <button class="btn-p" onclick="applyFilters()">应用筛选</button>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main">
+  <div class="sec-head">
+    <div class="sec-info">
+      <span class="sec-title">Steam 创意工坊壁纸</span>
+      <span class="res-count" id="resCnt">加载中...</span>
+    </div>
+    <div class="view-tog">
+      <button class="vbtn active" id="vgrid" onclick="setView('grid')" title="网格">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      </button>
+      <button class="vbtn" id="vlist" onclick="setView('list')" title="列表">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="wcon"></div>
+  <div id="pgn" class="pagination"></div>
+</main>
+
+<!-- Modal -->
+<div class="modal-ov" id="mOv" onclick="mOvClick(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="mTitle"></div>
+        <div class="modal-sub" id="mSub"></div>
+      </div>
+      <button class="xbtn" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <img class="modal-img" id="mImg" src="" alt="">
+      <div class="mstats" id="mStats"></div>
+      <div class="modal-desc" id="mDesc"></div>
+      <div class="modal-tags" id="mTags"></div>
+      <div class="cmt-sec">
+        <div class="cmt-title">💬 用户留言</div>
+        <div class="cmt-list" id="mCmts">
+          <div class="cmt-spin"><div class="spinner-sm"></div>加载留言中...</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="modal-sub-btn" id="mSubBtn">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        订阅 / 下载壁纸
+      </button>
+      <a class="steam-link" id="mSteam" href="#" target="_blank">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Steam页面
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<!-- Settings Modal -->
+<div class="settings-modal-ov" id="settingsModalOv" onclick="settingsModalOvClick(event)">
+  <div class="settings-modal">
+    <div class="settings-modal-head">
+      <div class="settings-modal-title">设置</div>
+      <button class="xbtn" onclick="closeSettingsModal()">×</button>
+    </div>
+    <div class="settings-modal-body">
+      <div class="settings-section">
+        <div class="settings-section-title">语言 / Language</div>
+        <div class="settings-options">
+          <button class="settings-option" id="langZh" onclick="switchLanguage('zh')">
+            <span class="settings-option-icon">🇨🇳</span>
+            <span class="settings-option-text">简体中文</span>
+            <span class="settings-option-check" style="display:none;">✓</span>
+          </button>
+          <button class="settings-option" id="langEn" onclick="switchLanguage('en')">
+            <span class="settings-option-icon">🇺🇸</span>
+            <span class="settings-option-text">English</span>
+            <span class="settings-option-check" style="display:none;">✓</span>
+          </button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Steam 账号 / Account</div>
+        <div class="settings-options">
+          <button class="settings-option" id="settingsLoginBtn" onclick="openLoginModal()">
+            <span class="settings-option-icon">🎮</span>
+            <span class="settings-option-text" id="settingsLoginText">登录 Steam 账号</span>
+          </button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Steam API</div>
+        <div class="settings-options">
+          <div class="settings-input-group">
+            <label for="steamApiKeyInput">Steam API Key:</label>
+            <input type="password" id="steamApiKeyInput" class="settings-input" placeholder="输入你的 Steam API Key">
+          </div>
+          <button class="settings-option" id="steamApiToggle" onclick="toggleSteamApi()">
+            <span class="settings-option-icon">🔑</span>
+            <span class="settings-option-text" id="steamApiToggleText">未启用 Steam API</span>
+            <span class="settings-option-check" id="steamApiToggleCheck" style="display:none;">✓</span>
+          </button>
+          <button class="settings-save-btn" onclick="saveCacheSettings()">保存 API 设置 / Save API</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Steam Login Modal -->
+<div class="login-modal-ov" id="loginModalOv" onclick="loginModalOvClick(event)">
+  <div class="login-modal">
+    <div class="login-modal-head">
+      <div class="login-modal-title">Steam 账号登录</div>
+      <button class="xbtn" onclick="closeLoginModal()">×</button>
+    </div>
+    <div class="login-modal-body">
+      <div class="login-info">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <span>登录后可下载需要账号权限的壁纸。凭据仅保存在本地会话中。</span>
+      </div>
+      <div class="login-form">
+        <div class="form-group">
+          <label for="steamUsername">Steam 用户名</label>
+          <input type="text" id="steamUsername" class="form-input" placeholder="输入 Steam 用户名" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="steamPassword">Steam 密码</label>
+          <input type="password" id="steamPassword" class="form-input" placeholder="输入 Steam 密码" autocomplete="current-password">
+        </div>
+        <div class="form-group" id="steamGuardGroup" style="display:none;">
+          <label for="steamGuardCode">Steam Guard 验证码</label>
+          <input type="text" id="steamGuardCode" class="form-input" placeholder="输入 Steam Guard 验证码" autocomplete="one-time-code">
+          <div class="form-hint">请检查邮箱或 Steam 手机应用获取验证码</div>
+        </div>
+      </div>
+    </div>
+    <div class="login-modal-foot">
+      <button class="btn-s" onclick="closeLoginModal()">取消</button>
+      <button class="btn-p" id="loginSubmitBtn" onclick="submitSteamLogin()">登录</button>
+    </div>
+  </div>
+</div>
+
+<footer class="site-disclaimer" hidden>
+  <div class="disclaimer-inner" id="siteDisclaimerText">免责声明：本项目在人工智能辅助下完成开发与整理，发布者未逐行人工审阅或手写核心代码；若与其他项目存在相似实现，可能属于技术方案趋同。项目仅供学习交流，请勿用于商业用途或侵权场景。</div>
+</footer>
+
+<script src="/assets/js/app.js"></script>
+<!-- 下载队列管理 Modal -->
+<div class="settings-modal-ov" id="queueModalOv" onclick="if(event.target===this) this.classList.remove('open')">
+  <div class="settings-modal" style="max-width: 640px;">
+    <div class="settings-modal-head" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+      <div style="display:flex; justify-content: space-between; width: 100%; align-items: center;">
+        <div class="settings-modal-title">
+          📦 下载队列 
+          <span id="sysNetSpeed" style="font-size:14px; color:var(--accent); margin-left:12px; font-family:monospace; font-weight:700;"></span>
+        </div>
+        <button class="xbtn" onclick="document.getElementById('queueModalOv').classList.remove('open')">×</button>
+      </div>
+      
+      <div style="display:flex; gap:10px; align-items:center; width: 100%;">
+        <button class="btn-s" style="padding:4px 12px; font-size:12px; height:32px; color:var(--accent); border-color:var(--accent);" onclick="qAction('resume_all')">全部开始</button>
+        <button class="btn-s" style="padding:4px 12px; font-size:12px; height:32px; color:var(--warn); border-color:var(--warn);" onclick="qAction('pause_all')">全部暂停</button>
+        <button class="btn-s" style="padding:4px 12px; font-size:12px; height:32px; margin-left: auto;" onclick="qAction('clear_completed')">清理完成与失败</button>
+      </div>
+    </div>
+    <div class="settings-modal-body" id="queueList" style="display:flex; flex-direction:column; gap:12px;">
+      <!-- 队列将在此动态渲染 -->
+    </div>
+  </div>
+</div>
+<div class="settings-modal-ov" id="jumpModalOv" onclick="if(event.target===this) closeJumpModal()">
+  <div class="settings-modal" style="max-width: 320px;">
+    <div class="settings-modal-head" style="padding-bottom: 16px;">
+      <div class="settings-modal-title" id="jumpModalTitle">跳转页码</div>
+      <button class="xbtn" onclick="closeJumpModal()">×</button>
+    </div>
+    <div class="settings-modal-body" style="padding-bottom: 20px;">
+      <div class="form-group">
+        <input type="number" id="jumpPageInput" class="form-input" placeholder="输入页码" min="1">
+        <div class="form-hint" id="jumpPageHint"></div>
+      </div>
+    </div>
+    <div class="login-modal-foot">
+      <button class="btn-s" onclick="closeJumpModal()" id="jumpCancelBtn">取消</button>
+      <button class="btn-p" onclick="submitPageJump()" id="jumpSubmitBtn">跳转</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
