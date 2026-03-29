@@ -29,10 +29,10 @@
 ## 启动方式
 
 1. **下载**本项目代码。  
-   下载wallpaper-webview.zip后解压。  
+   下载wallpaper-webview文件夹。  
 
 2. **启动服务**：
-   是修改文件夹内的docker-compose.yml后直接运行docker。
+   修改文件夹内的docker-compose.yml后直接运行docker。
 
 3. **访问网页**：在浏览器打开 `http://IP（运行Docker的IP）:3090`。
 
