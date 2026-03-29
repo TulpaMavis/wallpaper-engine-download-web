@@ -1307,7 +1307,12 @@ function ensureDir(p) {
 function runProcess(bin, args, timeoutMs, options = {}) {
   let killFn = null;
   const promise = new Promise((resolve, reject) => {
-    const spawnOptions = Object.assign({ windowsHide: true, env: Object.assign({}, process.env) }, options);
+    // 开启 detached 让 Linux 进程独立成组
+    const spawnOptions = Object.assign({ 
+      windowsHide: true, 
+      env: Object.assign({}, process.env),
+      detached: process.platform !== 'win32' 
+    }, options);
     const cp = spawn(bin, args, spawnOptions);
     let out = '';
     let err = '';
@@ -1359,7 +1364,15 @@ function runProcess(bin, args, timeoutMs, options = {}) {
     
     // 暴露强制中止方法供暂停功能使用
     killFn = () => {
-      try { cp.kill('SIGTERM'); setTimeout(() => { try { cp.kill('SIGKILL'); } catch {} }, 1000); } catch {}
+      try { 
+        if (process.platform === 'win32') {
+          cp.kill('SIGKILL');
+          try { execFileSync('taskkill', ['/pid', cp.pid, '/T', '/F'], {stdio: 'ignore'}); } catch(e){}
+        } else {
+          // 通过 PID 发送信号给整个进程组
+          try { process.kill(-cp.pid, 'SIGKILL'); } catch(e) { cp.kill('SIGKILL'); }
+        }
+      } catch {}
       reject(new Error('任务已被取消或暂停'));
     };
   });
@@ -1766,6 +1779,10 @@ async function downloadViaSteamCmd(publishedFileId, appId, title, options) {
           lastErr = `${at.name}/${variant.name} 未产出文件${reason ? `（${reason}）` : ''}`;
           console.warn(`[SteamCMD] ${lastErr}`);
         } catch (e) {
+          // 拦截被前端暂停或取消的任务，直接阻断外层的备用线路重试循环
+          if (e.message.includes('取消') || e.message.includes('暂停')) {
+            throw e;
+          }
           if (abortController.aborted) {
             throw new Error('Download aborted by client');
           }
@@ -1828,17 +1845,31 @@ async function downloadViaSteamCmd(publishedFileId, appId, title, options) {
     
     return { kind: 'zip', zipPath, zipName };
   } catch (e) {
-    // 如果是中断错误，清理临时目录
-    if (abortController.aborted || e.message.includes('aborted')) {
-      console.log(`[SteamCMD] Download aborted, cleaning up for item ${publishedFileId}...`);
-      if (!useSharedDir) {
-        try {
-          if (fs.existsSync(tempRoot)) {
-            fs.rmSync(tempRoot, { recursive: true, force: true });
-            console.log(`[SteamCMD] Cleaned up aborted download: ${tempRoot}`);
+    if (abortController.aborted || e.message.includes('aborted') || e.message.includes('取消') || e.message.includes('暂停')) {
+      
+      // 暂停，保留临时文件以供后续断点续传
+      const isPaused = options && options.task && options.task.status === 'paused';
+      
+      if (isPaused) {
+        console.log(`[SteamCMD] 任务已暂停，保留壁纸 ${publishedFileId} 的临时文件以供断点续传...`);
+      } else {
+        console.log(`[SteamCMD] 任务已被取消，正在彻底清理壁纸 ${publishedFileId} 的残留文件...`);
+        
+        const scrapDlDir = path.join(tempRoot, 'steamapps', 'workshop', 'downloads', String(appId), String(publishedFileId));
+        const scrapContentDir = path.join(tempRoot, 'steamapps', 'workshop', 'content', String(appId), String(publishedFileId));
+        
+        try { if (fs.existsSync(scrapDlDir)) fs.rmSync(scrapDlDir, { recursive: true, force: true }); } catch (err) {}
+        try { if (fs.existsSync(scrapContentDir)) fs.rmSync(scrapContentDir, { recursive: true, force: true }); } catch (err) {}
+
+        if (!useSharedDir) {
+          try {
+            if (fs.existsSync(tempRoot)) {
+              fs.rmSync(tempRoot, { recursive: true, force: true });
+              console.log(`[SteamCMD] Cleaned up aborted download tempRoot: ${tempRoot}`);
+            }
+          } catch (cleanupErr) {
+            console.warn('[SteamCMD] Failed to cleanup aborted download:', cleanupErr.message);
           }
-        } catch (cleanupErr) {
-          console.warn('[SteamCMD] Failed to cleanup aborted download:', cleanupErr.message);
         }
       }
     }
@@ -2258,15 +2289,16 @@ const server = http.createServer(async (req, res) => {
       const t = TASK_QUEUE[idx];
       
       if (action === 'pause' && t.status === 'downloading') {
+        t.status = 'paused'; t.speed = 0; // 改变状态为暂停，防止触发错误重试
         if (t.processPromise && t.processPromise.kill) t.processPromise.kill();
         if (t.cancelFn) t.cancelFn();
-        t.status = 'paused'; t.speed = 0;
       } else if (action === 'pause' && t.status === 'pending') {
         t.status = 'paused';
       } else if (action === 'resume' && (t.status === 'paused' || t.status === 'error')) {
         t.status = 'pending'; triggerQueue();
       } else if (action === 'cancel') {
         if (t.status === 'downloading') {
+          t.status = 'cancelled'; // 显式标记为取消状态
           if (t.processPromise && t.processPromise.kill) t.processPromise.kill();
           if (t.cancelFn) t.cancelFn();
         }
