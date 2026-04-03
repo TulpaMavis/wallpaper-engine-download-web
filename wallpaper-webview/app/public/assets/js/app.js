@@ -1246,7 +1246,7 @@ async function fetchQueue() {
     // 渲染包含进度条和详细信息的队列列表
     container.innerHTML = list.map(t => {
       const progStr = t.progress ? t.progress.toFixed(1) + '%' : '0.0%';
-      const statusMap = { pending:'排队中', downloading:'下载中...', moving:'转移中...', paused:'已暂停', error:'失败', completed:'已完成' };
+      const statusMap = { pending:'排队中', downloading:'下载中', moving:'转移中', paused:'已暂停', error:'失败', completed:'已完成' };
       const sText = statusMap[t.status] || t.status;
       
       // 文件大小/已下载量
