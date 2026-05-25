@@ -9,6 +9,8 @@ services:
     volumes:
       # 脚本目录
       - ./app:/app
+      # Steamcommunity 302 网络加速
+      - ./Steamcommunity_302:/Steamcommunity_302
       # Steam 账号的登录凭证
       - ./Steam:/root/Steam
       # 下载位置
@@ -17,3 +19,12 @@ services:
       # 代理
       #- HTTP_PROXY=
       #- HTTPS_PROXY=
+    command: >
+      /bin/sh -c "
+      chmod +x /Steamcommunity_302/steamcommunity_302.cli;
+      chmod +x /Steamcommunity_302/steamcommunity_302.caddy;
+      (cd /Steamcommunity_302 && ./steamcommunity_302.cli) & 
+      while [ ! -f /Steamcommunity_302/S302.hosts ]; do sleep 1; done; 
+      cat /Steamcommunity_302/S302.hosts >> /etc/hosts; 
+      exec node --expose-gc server.js
+      "
