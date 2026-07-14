@@ -165,7 +165,7 @@ let longPressTimer = null;
 let touchStartX = 0;
 let touchStartY = 0;
 document.addEventListener('touchstart', (e) => {
-  const btn = e.target.closest('.sub-btn.done, .lib-play-btn, .q-thumb');
+  const btn = e.target.closest('.sub-btn.done, .lib-play-btn, .q-thumb, .q-play-btn');
   if (btn && btn.dataset.playName) {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
@@ -1615,6 +1615,7 @@ async function fetchQueue() {
             </div>
             
             ${t.status === 'completed' ? `<button class="q-btn" onclick="qAction('cancel', ${t.id})">清理</button>` : ''}
+            ${(t.status === 'completed' && dlFileName) ? `<button class="q-btn success q-play-btn" data-play-name="${esc(dlFileName)}" onclick="playLibraryItem('${esc(dlFileName)}')" oncontextmenu="showPlayerMenu(event, '${esc(dlFileName)}'); return false;">播放</button>` : ''}
             ${t.status !== 'completed' ? `<button class="q-btn danger" onclick="promptCancelTask(${t.id})">取消</button>` : ''}
             ${(t.status === 'downloading' || t.status === 'pending') ? `<button class="q-btn warn" onclick="qAction('pause', ${t.id})">暂停</button>` : ''}
             ${t.status === 'paused' ? `<button class="q-btn success" onclick="qAction('resume', ${t.id})">继续</button>` : ''}
