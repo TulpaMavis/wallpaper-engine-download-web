@@ -1572,8 +1572,10 @@ async function fetchQueue() {
       const safeTitle = esc(t.title || t.id).replace(/'/g, "\\'");
       const isDone = t.status === 'completed';
       const dlFileName = downloadedMap && downloadedMap[t.id];
-      
-      const thumbAction = (isDone && dlFileName) ? `onclick="playLibraryItem('${esc(dlFileName)}')" title="播放视频"` : `onclick="toast('尚未下载完成', 'warn')" title="尚未完成"`;
+
+      const thumbAction = (isDone && dlFileName) 
+        ? `onclick="playLibraryItem('${esc(dlFileName)}')" oncontextmenu="showPlayerMenu(event, '${esc(dlFileName)}'); return false;" title="播放视频"` 
+        : `onclick="toast('尚未下载完成', 'warn')" title="尚未完成"`;
       const titleAction = `onclick="openModal('${t.id}', '${safeTitle}')" style="cursor:pointer; transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'" title="查看详情"`;
 
       let typeName = t.type === 'Video' ? '视频' : (t.type === 'Web' ? '网站' : (t.type === 'App' ? '应用' : '场景'));
@@ -1581,9 +1583,11 @@ async function fetchQueue() {
       if(!t.type && t.isVideo) typeName = '视频';
       const typeBadge = `<span class="type-badge ${tClass}" style="position:absolute; top:2px; left:2px; transform:scale(0.85); transform-origin:top left; pointer-events:none;">${typeName}</span>`;
 
+      const dataPlayName = dlFileName ? `data-play-name="${esc(dlFileName)}"` : '';
+
       const thumbHtml = previewUrl 
-        ? `<div style="position:relative; display:inline-block; flex-shrink:0;"><img src="${previewUrl}" class="q-thumb" ${thumbAction} style="cursor:pointer;" onerror="this.src='${PLACEHOLDER}'">${typeBadge}</div>` 
-        : `<div style="position:relative; display:inline-block; flex-shrink:0;"><div class="q-thumb" ${thumbAction} style="cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:24px;">📄</div>${typeBadge}</div>`;
+        ? `<div style="position:relative; display:inline-block; flex-shrink:0;"><img src="${previewUrl}" class="q-thumb" ${thumbAction} ${dataPlayName} style="cursor:pointer;" onerror="this.src='${PLACEHOLDER}'">${typeBadge}</div>` 
+        : `<div style="position:relative; display:inline-block; flex-shrink:0;"><div class="q-thumb" ${thumbAction} ${dataPlayName} style="cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:24px;">📄</div>${typeBadge}</div>`;
 
       return `
       <div class="q-item">
