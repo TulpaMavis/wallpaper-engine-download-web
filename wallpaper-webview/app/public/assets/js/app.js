@@ -534,26 +534,30 @@ function restorePrefs(){
   }
 
   const params = new URLSearchParams(window.location.search);
-  if (params.has('theme')) S.theme = params.get('theme');
-  if (params.has('view')) S.view = params.get('view');
 
-  if (params.has('q')) S.f.search = params.get('q');
-  if (params.has('p')) S.page = parseInt(params.get('p')) || 1;
-
-  if (params.has('sort')) S.f.sort = params.get('sort');
-  if (params.has('days')) S.f.days = params.get('days');
+  S.page = params.has('p') ? parseInt(params.get('p'), 10) : 1;
+  S.f.search = params.has('q') ? params.get('q') : '';
+  S.theme = params.has('theme') ? params.get('theme') : 'dark';
+  S.view = params.has('view') ? params.get('view') : 'grid';
+  S.f.sort = params.has('sort') ? params.get('sort') : 'toprated';
+  S.f.days = params.has('days') ? params.get('days') : '7';
 
   if (params.has('types')) {
-    const arr = params.get('types').split(',');
-    activeTypes = new Set(arr.filter(id=>TYPES.some(x=>x.id===id)));
+    activeTypes = new Set(params.get('types').split(','));
+  } else {
+    activeTypes.clear(); 
   }
+
   if (params.has('ratings')) {
-    const arr = params.get('ratings').split(',');
-    activeRatings = new Set(arr.filter(id=>RATINGS.some(x=>x.id===id)));
+    activeRatings = new Set(params.get('ratings').split(','));
+  } else {
+    activeRatings.clear();
   }
+
   if (params.has('genres')) {
-    const arr = params.get('genres').split(',');
-    activeGenres = new Set(arr.filter(g=>GENRES.some(x=>x.id===g)));
+    activeGenres = new Set(params.get('genres').split(','));
+  } else {
+    activeGenres.clear();
   }
 
   S.f.genres = Array.from(activeGenres);
