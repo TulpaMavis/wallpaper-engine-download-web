@@ -1493,8 +1493,13 @@ function updateAllWallButtons() {
     const task = currentQueueTasks.find(t => String(t.id) === String(fid));
 
     btn.removeAttribute('onclick');
-    btn.style.pointerEvents = 'auto';
-    
+
+    if (isModal) {
+      btn.style.pointerEvents = '';
+    } else {
+      btn.style.pointerEvents = 'auto';
+    }
+
     // 注入标识，供触控长按检测使用
     btn.dataset.playName = dlFileName || '';
 
