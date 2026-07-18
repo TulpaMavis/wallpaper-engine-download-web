@@ -1599,14 +1599,14 @@ async function fetchQueue() {
       
       // 队列的点击逻辑，并根据类型渲染左上角的标签贴纸
       const previewUrl = t.thumb || '';
-      const safeTitle = esc(t.title || t.id).replace(/'/g, "\\'");
+      const safeTitle = esc(t.title || t.id);
       const isDone = t.status === 'completed';
       const dlFileName = downloadedMap && downloadedMap[t.id];
 
       const thumbAction = (isDone && dlFileName) 
-        ? `onclick="playLibraryItem('${esc(dlFileName)}')" oncontextmenu="showPlayerMenu(event, '${esc(dlFileName)}'); return false;" title="播放视频"` 
-        : `onclick="toast('尚未下载完成', 'warn')" title="尚未完成"`;
-      const titleAction = `onclick="openModal('${t.id}', '${safeTitle}', '${previewUrl}', '${t.type || ''}')" style="cursor:pointer; transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'" title="查看详情"`;
+        ? `data-action="play" data-filename="${esc(dlFileName)}" title="播放视频"` 
+        : `data-action="toast" data-msg="尚未下载完成" title="尚未完成"`;
+      const titleAction = `data-action="details" data-id="${t.id}" data-title="${safeTitle}" data-thumb="${previewUrl}" data-type="${t.type || ''}" style="cursor:pointer; transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'" title="查看详情"`;
 
       let typeName = t.type === 'Video' ? '视频' : (t.type === 'Web' ? '网站' : (t.type === 'App' ? '应用' : '场景'));
       let tClass = t.type ? t.type.toLowerCase() : (t.isVideo ? 'video' : 'scene');
@@ -1654,16 +1654,16 @@ async function fetchQueue() {
 
           <div class="q-actions">
             <div class="q-updown" style="margin-right: auto;">
-              <button class="q-btn q-btn-half top" title="上移" onclick="qAction('up', ${t.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg></button>
-              <button class="q-btn q-btn-half btm" title="下移" onclick="qAction('down', ${t.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></button>
+              <button class="q-btn q-btn-half top" title="上移" data-action="q-up" data-id="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg></button>
+              <button class="q-btn q-btn-half btm" title="下移" data-action="q-down" data-id="${t.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg></button>
             </div>
             
-            ${t.status === 'completed' ? `<button class="q-btn" onclick="qAction('cancel', ${t.id})">清理</button>` : ''}
-            ${(t.status === 'completed' && dlFileName) ? `<button class="q-btn success q-play-btn" data-play-name="${esc(dlFileName)}" onclick="playLibraryItem('${esc(dlFileName)}')" oncontextmenu="showPlayerMenu(event, '${esc(dlFileName)}'); return false;">播放</button>` : ''}
-            ${t.status !== 'completed' ? `<button class="q-btn danger" onclick="promptCancelTask(${t.id})">取消</button>` : ''}
-            ${(t.status === 'downloading' || t.status === 'pending') ? `<button class="q-btn warn" onclick="qAction('pause', ${t.id})">暂停</button>` : ''}
-            ${t.status === 'paused' ? `<button class="q-btn success" onclick="qAction('resume', ${t.id})">继续</button>` : ''}
-            ${t.status === 'error' ? `<button class="q-btn success" onclick="qAction('resume', ${t.id})">重试</button>` : ''}
+            ${t.status === 'completed' ? `<button class="q-btn" data-action="clear-queue" data-id="${t.id}">清理</button>` : ''}
+            ${(t.status === 'completed' && dlFileName) ? `<button class="q-btn success q-play-btn" data-play-name="${esc(dlFileName)}" data-action="play" data-filename="${esc(dlFileName)}">播放</button>` : ''}
+            ${t.status !== 'completed' ? `<button class="q-btn danger" data-action="delete-queue" data-id="${t.id}">取消</button>` : ''}
+            ${(t.status === 'downloading' || t.status === 'pending') ? `<button class="q-btn warn" data-action="q-pause" data-id="${t.id}">暂停</button>` : ''}
+            ${t.status === 'paused' ? `<button class="q-btn success" data-action="q-resume" data-id="${t.id}">继续</button>` : ''}
+            ${t.status === 'error' ? `<button class="q-btn success" data-action="q-resume" data-id="${t.id}">重试</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -2163,8 +2163,8 @@ async function fetchLibrary() {
         displayTitle = displayTitle.replace(new RegExp(`[-_]?${id}.*$`), "");
         if (!displayTitle) displayTitle = id; 
       }
-      const safeTitle = esc(displayTitle).replace(/'/g, "\\'");
-      const safeName = esc(t.name).replace(/'/g, "\\'");
+      const safeTitle = esc(displayTitle);
+      const safeName = esc(t.name);
       
       // 读取缓存中的图片和点赞，如果没有就使用沙漏加载图
       const thumbSrc = (cached && cached.thumb) ? cached.thumb : (cached ? PLACEHOLDER : PLACEHOLDER_LOADING);
@@ -2195,7 +2195,7 @@ async function fetchLibrary() {
 
       // 包裹相对定位并叠加标签
       const thumbHtml = `<div style="position:relative; display:inline-block; flex-shrink:0;">
-        <img id="lib-thumb-${idx}" src="${thumbSrc}" class="q-thumb" data-play-name="${safeName}" onclick="if(!libBatchMode) playLibraryItem('${safeName}')" oncontextmenu="if(!libBatchMode) { showPlayerMenu(event, '${safeName}'); return false; }" style="${libBatchMode?'cursor:default;':'cursor:pointer;'}" title="播放视频" onerror="${onErrorStr}">
+        <img id="lib-thumb-${idx}" src="${thumbSrc}" class="q-thumb" data-play-name="${safeName}" data-action="play" data-filename="${safeName}" style="${libBatchMode?'cursor:default;':'cursor:pointer;'}" title="播放视频" onerror="${onErrorStr}">
         ${typeBadge}
       </div>`;
 
@@ -2207,21 +2207,21 @@ async function fetchLibrary() {
         ${chkHtml}
         ${thumbHtml}
         <div style="display: flex; flex-direction: column; gap: 4px; overflow: hidden; flex: 1; margin-left: 14px; justify-content: center;">
-          <span style="font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 68px; ${id ? 'cursor:pointer; transition:color 0.2s;' : ''}" ${id ? `onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'" onclick="if(!libBatchMode) openModal('${id}', '${safeTitle}', '${cached && cached.thumb ? cached.thumb : ''}', '${cached && cached.type ? cached.type : ''}')"` : ''} title="${id ? '查看详情' : esc(displayTitle)}">${esc(displayTitle)}</span>
-
+          <span style="font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 68px; ${id ? 'cursor:pointer; transition:color 0.2s;' : ''}" ${id ? `onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'" data-action="details" data-id="${id}" data-title="${safeTitle}" data-thumb="${cached && cached.thumb ? cached.thumb : ''}" data-type="${cached && cached.type ? cached.type : ''}"` : ''} title="${id ? '查看详情' : esc(displayTitle)}">${esc(displayTitle)}</span>
+          
           <span style="font-size: 11px; color: var(--text3);">${new Date(t.mtime).toLocaleString()}</span>
           <div id="lib-stats-${idx}" style="font-size: 11px; color: var(--text2); margin-top: 2px;">❤️ ${fmtN(subs)} &nbsp; ⭐ ${fmtN(favs)}</div>
           <div style="font-weight: 600; font-size: 11px; color: var(--text); margin-top: 2px; padding-right: 68px;">📦 ${t.isDir ? '文件夹' : formatBytes(t.size)}</div>
         </div>
         
         <div class="lib-del-btn" style="display: ${libBatchMode ? 'none' : 'flex'}; position: absolute; top: 12px; right: 12px; width: 62px; justify-content: space-between;">
-          <button style="width: 28px; height: 28px; border-radius: 6px; background: var(--bg3); border: 1px solid var(--border); color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; padding: 0;" onmouseover="this.style.color='var(--accent)'; this.style.borderColor='rgba(79,156,249,0.4)'; this.style.background='rgba(79,156,249,0.1)';" onmouseout="this.style.color='var(--text3)'; this.style.borderColor='var(--border)'; this.style.background='var(--bg3)';" onclick="downloadLibraryItem('${safeName}', ${t.isDir})" title="下载文件">
+          <button style="width: 28px; height: 28px; border-radius: 6px; background: var(--bg3); border: 1px solid var(--border); color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; padding: 0;" onmouseover="this.style.color='var(--accent)'; this.style.borderColor='rgba(79,156,249,0.4)'; this.style.background='rgba(79,156,249,0.1)';" onmouseout="this.style.color='var(--text3)'; this.style.borderColor='var(--border)'; this.style.background='var(--bg3)';" data-action="download-lib" data-filename="${safeName}" data-isdir="${t.isDir}" title="下载文件">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           </button>
-          <button style="width: 28px; height: 28px; border-radius: 6px; background: var(--bg3); border: 1px solid var(--border); color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; transition: all 0.2s; padding: 0;" onmouseover="this.style.background='rgba(244,92,92,0.1)'; this.style.color='var(--danger)'; this.style.borderColor='rgba(244,92,92,0.4)';" onmouseout="this.style.background='var(--bg3)'; this.style.color='var(--text3)'; this.style.borderColor='var(--border)';" onclick="deleteLibraryItem('${safeName}')" title="彻底删除">×</button>
+          <button style="width: 28px; height: 28px; border-radius: 6px; background: var(--bg3); border: 1px solid var(--border); color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; transition: all 0.2s; padding: 0;" onmouseover="this.style.background='rgba(244,92,92,0.1)'; this.style.color='var(--danger)'; this.style.borderColor='rgba(244,92,92,0.4)';" onmouseout="this.style.background='var(--bg3)'; this.style.color='var(--text3)'; this.style.borderColor='var(--border)';" data-action="delete-lib" data-filename="${safeName}" title="彻底删除">×</button>
         </div>
         
-        <button class="btn-p lib-play-btn" data-play-name="${safeName}" style="display: ${libBatchMode ? 'none' : 'flex'}; position: absolute; bottom: 12px; right: 12px; width: 62px; height: 28px; align-items: center; justify-content: center; padding: 0; font-weight: normal; font-size: 13px; border-radius: 6px; background: var(--success); border: 1px solid var(--success); color: #fff; cursor: pointer; white-space: nowrap;" onclick="playLibraryItem('${safeName}')" oncontextmenu="showPlayerMenu(event, '${safeName}'); return false;">
+        <button class="btn-p lib-play-btn" data-play-name="${safeName}" data-action="play" data-filename="${safeName}" style="display: ${libBatchMode ? 'none' : 'flex'}; position: absolute; bottom: 12px; right: 12px; width: 62px; height: 28px; align-items: center; justify-content: center; padding: 0; font-weight: normal; font-size: 13px; border-radius: 6px; background: var(--success); border: 1px solid var(--success); color: #fff; cursor: pointer; white-space: nowrap;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> 播放
         </button>
       </div>
@@ -2320,3 +2320,64 @@ async function fetchLibrary() {
     container.innerHTML = `<div style="text-align:center; color:var(--danger); padding:30px;">加载失败: ${e.message}</div>`;
   }
 }
+
+// ==========================================
+// 全局事件委托
+// ==========================================
+document.addEventListener('click', (e) => {
+  const target = e.target.closest('[data-action]');
+  if (!target) return;
+
+  const action = target.dataset.action;
+  const filename = target.dataset.filename;
+  const id = target.dataset.id;
+  const msg = target.dataset.msg;
+
+  // 拦截批量操作模式下的点击
+  if (typeof libBatchMode !== 'undefined' && libBatchMode && (action === 'play' || action === 'details')) return;
+
+  switch (action) {
+    case 'play':
+      if (filename) playLibraryItem(filename);
+      break;
+    case 'delete-lib':
+      if (filename) deleteLibraryItem(filename);
+      break;
+    case 'download-lib':
+      if (filename) downloadLibraryItem(filename, target.dataset.isdir === 'true');
+      break;
+    case 'delete-queue':
+      if (id) promptCancelTask(id);
+      break;
+    case 'clear-queue':
+      if (id) qAction('cancel', id);
+      break;
+    case 'q-up':
+      if (id) qAction('up', id);
+      break;
+    case 'q-down':
+      if (id) qAction('down', id);
+      break;
+    case 'q-pause':
+      if (id) qAction('pause', id);
+      break;
+    case 'q-resume':
+      if (id) qAction('resume', id);
+      break;
+    case 'details':
+      if (id) openModal(id, target.dataset.title, target.dataset.thumb, target.dataset.type);
+      break;
+    case 'toast':
+      if (msg) toast(msg, 'warn');
+      break;
+  }
+});
+
+document.addEventListener('contextmenu', (e) => {
+  const target = e.target.closest('[data-action="play"]');
+  if (target && target.dataset.filename) {
+    if (typeof libBatchMode !== 'undefined' && libBatchMode) return;
+    e.preventDefault(); 
+    showPlayerMenu(e, target.dataset.filename);
+  }
+});
