@@ -2096,7 +2096,8 @@ async function submitLibraryDelete() {
       toast('删除成功', 'ok');
 
       document.querySelectorAll('#libraryList .q-item').forEach(el => {
-        if (el.innerHTML.includes(`deleteLibraryItem('${name}')`)) {
+        const delBtn = el.querySelector('[data-action="delete-lib"]');
+        if (delBtn && delBtn.dataset.filename === name) {
           el.remove();
         }
       });
