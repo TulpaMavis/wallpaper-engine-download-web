@@ -1612,22 +1612,18 @@ async function fetchQueue() {
       let tClass = t.type ? t.type.toLowerCase() : (t.isVideo ? 'video' : 'scene');
       if(!t.type && t.isVideo) typeName = '视频';
       
-      // 记录兜底文本和类名
-      const fallbackText = t.isVideo ? '视频' : '压缩包';
-      const fallbackClass = t.isVideo ? 'video' : 'scene';
-
       // 如果没有封面，代表未能从 Steam 搜索获取到有效详情，强制显示为基础文件类型
       if (!t.thumb) {
-        typeName = fallbackText;
-        tClass = fallbackClass;
+        typeName = t.isVideo ? '视频' : '压缩包';
+        tClass = t.isVideo ? 'video' : 'scene';
       }
       
       const typeBadge = `<span class="type-badge ${tClass}" style="position:absolute; top:2px; left:2px; transform:scale(0.85); transform-origin:top left; pointer-events:none;">${typeName}</span>`;
 
       const dataPlayName = dlFileName ? `data-play-name="${esc(dlFileName)}"` : '';
 
-      // 修复：利用全局 PLACEHOLDER 变量，并在图片加载失败时(onerror)，同样让角标变为兜底类型
-      const onErrorStr = `this.src=PLACEHOLDER; const b=this.nextElementSibling; if(b){ b.textContent='${fallbackText}'; b.className='type-badge ${fallbackClass}'; }`;
+      // 图片加载失败时(onerror)，保留当前已经判定好的真实角标类型
+      const onErrorStr = `this.src=PLACEHOLDER; const b=this.nextElementSibling; if(b){ b.textContent='${typeName}'; b.className='type-badge ${tClass}'; }`;
 
       const thumbHtml = previewUrl 
         ? `<div style="position:relative; display:inline-block; flex-shrink:0;"><img src="${previewUrl}" class="q-thumb" ${thumbAction} ${dataPlayName} style="cursor:pointer;" onerror="${onErrorStr}">${typeBadge}</div>` 
@@ -2178,9 +2174,6 @@ async function fetchLibrary() {
       let typeName = isVideo ? '视频' : (t.isDir ? '文件夹' : '压缩包');
       let badgeDisplay = 'display:none;'; // 没查到真实类型前默认隐藏
       
-      const fallbackText = typeName;
-      const fallbackClass = typeClass;
-      
       // 若有真实缓存类型则覆盖
       if (cached && cached.type) {
         typeClass = cached.type.toLowerCase();
@@ -2192,7 +2185,7 @@ async function fetchLibrary() {
       }
       const typeBadge = `<span class="type-badge ${typeClass}" style="position:absolute; top:4px; left:4px; transform:scale(0.85); transform-origin:top left; pointer-events:none; z-index:10; ${badgeDisplay}">${typeName}</span>`;
 
-      const onErrorStr = `this.src=PLACEHOLDER; const b=this.nextElementSibling; if(b){ b.textContent='${fallbackText}'; b.className='type-badge ${fallbackClass}'; b.style.display=''; }`;
+      const onErrorStr = `this.src=PLACEHOLDER; const b=this.nextElementSibling; if(b){ b.textContent='${typeName}'; b.className='type-badge ${typeClass}'; b.style.display=''; }`;
 
       // 包裹相对定位并叠加标签
       const thumbHtml = `<div style="position:relative; display:inline-block; flex-shrink:0;">
