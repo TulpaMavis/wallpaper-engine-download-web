@@ -968,7 +968,8 @@ function renderItems(items){
   });
 }
 
-const PLACEHOLDER = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100%25' height='100%25'%3E%3Crect width='100' height='100' fill='%231c2030'/%3E%3Ctext x='50' y='45' text-anchor='middle' fill='%235a6278' font-size='28'%3E🖼%3C/text%3E%3Ctext x='50' y='72' text-anchor='middle' fill='%235a6278' font-size='14'%3E暂无图片%3C/text%3E%3C/svg%3E`;
+window.PLACEHOLDER = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100%25' height='100%25'%3E%3Crect width='100' height='100' fill='%231c2030'/%3E%3Ctext x='50' y='45' text-anchor='middle' fill='%235a6278' font-size='28'%3E🖼%3C/text%3E%3Ctext x='50' y='72' text-anchor='middle' fill='%235a6278' font-size='14'%3E暂无图片%3C/text%3E%3C/svg%3E`;
+const PLACEHOLDER = window.PLACEHOLDER; 
 const PLACEHOLDER_LOADING = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100%25' height='100%25'%3E%3Crect width='100' height='100' fill='%231c2030'/%3E%3Ctext x='50' y='45' text-anchor='middle' fill='%234f9cf9' font-size='28'%3E⏳%3C/text%3E%3Ctext x='50' y='72' text-anchor='middle' fill='%234f9cf9' font-size='14'%3E加载中%3C/text%3E%3C/svg%3E`;
 
 function cardHtml(item, isL, idx){
@@ -1608,22 +1609,25 @@ async function fetchQueue() {
         : `data-action="toast" data-msg="尚未下载完成" title="尚未完成"`;
       const titleAction = `data-action="details" data-id="${t.id}" data-title="${safeTitle}" data-thumb="${previewUrl}" data-type="${t.type || ''}" style="cursor:pointer; transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text)'" title="查看详情"`;
 
+      const fallbackName = t.isVideo ? '视频' : '压缩包';
+      const fallbackClass = t.isVideo ? 'video' : 'scene';
+
       let typeName = t.type === 'Video' ? '视频' : (t.type === 'Web' ? '网站' : (t.type === 'App' ? '应用' : '场景'));
-      let tClass = t.type ? t.type.toLowerCase() : (t.isVideo ? 'video' : 'scene');
+      let tClass = t.type ? t.type.toLowerCase() : fallbackClass;
       if(!t.type && t.isVideo) typeName = '视频';
       
       // 如果没有封面，代表未能从 Steam 搜索获取到有效详情，强制显示为基础文件类型
       if (!t.thumb) {
-        typeName = t.isVideo ? '视频' : '压缩包';
-        tClass = t.isVideo ? 'video' : 'scene';
+        typeName = fallbackName;
+        tClass = fallbackClass;
       }
       
       const typeBadge = `<span class="type-badge ${tClass}" style="position:absolute; top:2px; left:2px; transform:scale(0.85); transform-origin:top left; pointer-events:none;">${typeName}</span>`;
 
       const dataPlayName = dlFileName ? `data-play-name="${esc(dlFileName)}"` : '';
 
-      // 图片加载失败时(onerror)，保留当前已经判定好的真实角标类型
-      const onErrorStr = `this.src=PLACEHOLDER; const b=this.nextElementSibling; if(b){ b.textContent='${typeName}'; b.className='type-badge ${tClass}'; }`;
+      // 图片加载失败时，强制降级回基础文件类型
+      const onErrorStr = `this.onerror=null; this.src=window.PLACEHOLDER; const b=this.parentElement.querySelector('.type-badge'); if(b){ b.textContent='${fallbackName}'; b.className='type-badge ${fallbackClass}'; b.style.display=''; }`;
 
       const thumbHtml = previewUrl 
         ? `<div style="position:relative; display:inline-block; flex-shrink:0;"><img src="${previewUrl}" class="q-thumb" ${thumbAction} ${dataPlayName} style="cursor:pointer;" onerror="${onErrorStr}">${typeBadge}</div>` 
@@ -2170,8 +2174,11 @@ async function fetchLibrary() {
 
       // 判定本地文件后缀生成标签
       const isVideo = t.name.match(/\.(mp4|webm|mov|mkv|ogg)$/i);
-      let typeClass = isVideo ? 'video' : 'scene';
-      let typeName = isVideo ? '视频' : (t.isDir ? '文件夹' : '压缩包');
+      const fallbackClass = isVideo ? 'video' : 'scene';
+      const fallbackName = isVideo ? '视频' : (t.isDir ? '文件夹' : '压缩包');
+
+      let typeClass = fallbackClass;
+      let typeName = fallbackName;
       let badgeDisplay = 'display:none;'; // 没查到真实类型前默认隐藏
       
       // 若有真实缓存类型则覆盖
@@ -2185,7 +2192,8 @@ async function fetchLibrary() {
       }
       const typeBadge = `<span class="type-badge ${typeClass}" style="position:absolute; top:4px; left:4px; transform:scale(0.85); transform-origin:top left; pointer-events:none; z-index:10; ${badgeDisplay}">${typeName}</span>`;
 
-      const onErrorStr = `this.src=PLACEHOLDER; const b=this.nextElementSibling; if(b){ b.textContent='${typeName}'; b.className='type-badge ${typeClass}'; b.style.display=''; }`;
+      // 图片加载失败时，强制降级回基础文件类型
+      const onErrorStr = `this.onerror=null; this.src=window.PLACEHOLDER; const b=this.parentElement.querySelector('.type-badge'); if(b){ b.textContent='${fallbackName}'; b.className='type-badge ${fallbackClass}'; b.style.display=''; }`;
 
       // 包裹相对定位并叠加标签
       const thumbHtml = `<div style="position:relative; display:inline-block; flex-shrink:0;">
