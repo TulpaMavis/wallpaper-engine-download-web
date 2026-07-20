@@ -335,11 +335,17 @@ async function preloadLibraryCache() {
       idsToFetch.forEach(id => {
         if (detailMap[id]) {
           const itemD = detailMap[id];
+
+          let realType = getType(itemD);
+          if (!itemD.preview_url) {
+            realType = ''; 
+          }
+
           libLocalCache[id] = {
             subs: itemD.subscriptions || itemD.lifetime_subscriptions || 0,
             favs: itemD.favorited || itemD.lifetime_favorited || 0,
             thumb: itemD.preview_url || '',
-            type: getType(itemD)
+            type: realType
           };
         } else {
           libLocalCache[id] = { subs: 0, favs: 0, thumb: '', type: '' };
