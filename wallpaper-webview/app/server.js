@@ -1417,6 +1417,7 @@ async function resolveSteamCmdPath() {
 
   if (process.platform !== 'win32') {
     candidates.unshift(
+      '/steamcmd/steamcmd.sh',
       path.join(__dirname, 'steamcmd', 'steamcmd.sh'),
       '/usr/bin/steamcmd',
       '/usr/games/steamcmd',
@@ -1595,14 +1596,10 @@ async function downloadViaSteamCmd(publishedFileId, appId, title, options) {
   const pass = webPass || envPass || (localAcc && localAcc.pass) || '';
   const guard = webGuard || '';
   
-  // 如果有持久化登录或账号登录，使用 STEAM_CONFIG_DIR 作为安装目录
-  // 这样可以复用已登录的会话，避免重复登录
-  // 只有匿名下载才使用临时目录
-  const useSharedDir = (isPersistent && user) || (user && pass);
-  const tempRoot = useSharedDir 
-    ? STEAM_CONFIG_DIR
-    : fs.mkdtempSync(path.join(os.tmpdir(), 'wallhub-steamcmd-'));
-  if (useSharedDir) ensureDir(tempRoot);
+  // 为每个任务分配独立的沙盒
+  const tempRoot = path.join(STEAM_CONFIG_DIR, 'tasks', String(publishedFileId));
+  ensureDir(tempRoot);
+  const useSharedDir = false; // 强制标记为非共享，使得失败或取消时能被自动清理
   
   let itemDir = path.join(tempRoot, 'steamapps', 'workshop', 'content', String(appId), String(publishedFileId));
   const attempts = [];
@@ -1619,7 +1616,7 @@ async function downloadViaSteamCmd(publishedFileId, appId, title, options) {
     console.log(`[SteamCMD] Using anonymous login (temp dir: ${tempRoot})`);
     attempts.push({ name: 'anonymous', loginArgs: ['+login', 'anonymous'] });
   }
-  
+
   let lastErr = '';
   try {
     const acfFile = path.join(tempRoot, 'steamapps', 'workshop', `appworkshop_${appId}.acf`);
@@ -1914,9 +1911,9 @@ async function handleDownload(res, id, title) {
   };
   TASK_QUEUE.push(task);
 
-  // 提前在 Steam 配置目录中创建以 ID 命名的占位文件夹，确保处于等待中尚未开始的任务在意外重启后也能被扫描恢复
+  // 提前在 tasks 目录中创建独立沙盒占位文件夹，确保意外重启后能被扫描恢复
   try {
-    const placeholderDir = path.join(STEAM_CONFIG_DIR, 'steamapps', 'workshop', 'downloads', String(appId), String(wantId));
+    const placeholderDir = path.join(STEAM_CONFIG_DIR, 'tasks', String(wantId));
     if (!fs.existsSync(placeholderDir)) {
       fs.mkdirSync(placeholderDir, { recursive: true });
     }
@@ -1967,22 +1964,18 @@ async function triggerQueue() {
           const finalPath = path.join(DOWNLOAD_DIR, dl.fileName);
           if (dl.filePath !== finalPath) {
             try {
-              // 改为 await 异步 API，彻底防止大文件跨盘移动时卡死 Node.js
               await fs.promises.rename(dl.filePath, finalPath);
             } catch (err) {
               if (err.code === 'EXDEV') {
-                // 异步执行大文件跨硬盘复制，前端转成“转移中”状态
                 await fs.promises.cp(dl.filePath, finalPath, { recursive: true });
                 await fs.promises.rm(dl.filePath, { recursive: true, force: true });
               } else throw err;
             }
           }
-          
-          if (dl.itemDir && fs.existsSync(dl.itemDir)) {
-            try { await fs.promises.rm(dl.itemDir, { recursive: true, force: true }); } catch (e) {}
+          // 转移成功后，安全清理该任务的独立沙盒目录
+          if (dl.tempRoot && dl.tempRoot.includes('tasks')) {
+            try { await fs.promises.rm(dl.tempRoot, { recursive: true, force: true }); } catch (e) {}
           }
-          
-          if (!dl.useSharedDir && dl.tempRoot) try { await fs.promises.rm(dl.tempRoot, { recursive: true, force: true }); } catch (e) {}
         }
       }
       
@@ -2279,26 +2272,22 @@ function serveStatic(req, res) {
 // ─────────────────────────────────────────────────────────────────
 // 从 SteamCMD 原生临时目录扫描并恢复意外中断的下载任务
 async function recoverQueueFromSteamTemp() {
+  // 延迟 3 秒执行，等待网络和 DNS 初始化完成，防止重启瞬间断网导致抓取不到详情
+  await new Promise(r => setTimeout(r, 3000));
+  
   const appId = '431960';
-  const wsDir = path.join(STEAM_CONFIG_DIR, 'steamapps', 'workshop');
-  const dlDir = path.join(wsDir, 'downloads', appId);
-  const contentDir = path.join(wsDir, 'content', appId);
-
+  const tasksDir = path.join(STEAM_CONFIG_DIR, 'tasks');
   const foundIds = new Set();
 
-  // 1. 扫描临时目录下的纯数字文件夹 (壁纸 ID)
-  const scanDir = (dir) => {
-    if (!fs.existsSync(dir)) return;
+  // 1. 扫描 tasks 独立沙盒目录下的纯数字文件夹 (壁纸 ID)
+  if (fs.existsSync(tasksDir)) {
     try {
-      const files = fs.readdirSync(dir);
+      const files = fs.readdirSync(tasksDir);
       for (const f of files) {
         if (/^\d{8,}$/.test(f)) foundIds.add(f);
       }
     } catch (e) {}
-  };
-
-  scanDir(dlDir);
-  scanDir(contentDir);
+  }
 
   // 2. 检查该 ID 是否已经在本地 downloads 文件夹中下载完成
   const isAlreadyDownloaded = (id) => {
@@ -2315,32 +2304,41 @@ async function recoverQueueFromSteamTemp() {
   );
 
   if (idsToRecover.length === 0) return;
-  console.log(`[Queue] 发现 ${idsToRecover.length} 个中断的 Steam 临时下载目录，等待网络就绪后恢复...`);
+  console.log(`[Queue] 发现 ${idsToRecover.length} 个中断的下载沙盒，正在请求 Steam 恢复任务详情...`);
 
   try {
-    // 4. 核心修复：延迟 3 秒执行 API 请求，完美避开服务器刚开机时网络和代理尚未初始化的真空期
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // 核心修复2：加入重试机制，最多尝试 3 次，防止偶发网络波动导致抓取为空
+    let details = [];
+    for (let i = 0; i < 3; i++) {
+      details = await getFileDetailsSafe(idsToRecover);
+      if (details && details.length > 0) break;
+      console.log(`[Queue] 恢复详情失败，等待 3 秒后重试... (${i + 1}/3)`);
+      await new Promise(r => setTimeout(r, 3000));
+    }
 
-    const details = await getFileDetailsSafe(idsToRecover);
     const detailMap = {};
     details.forEach(d => {
-      if (d && d.result === 1) detailMap[d.publishedfileid] = d;
+      // 核心修复3：强制转换为字符串，确保类型绝对匹配
+      if (d && d.result === 1 && d.publishedfileid) {
+        detailMap[String(d.publishedfileid)] = d;
+      }
     });
 
     let recoveredCount = 0;
     
     // 5. 组装拥有完整封面、标题信息的任务塞入队列
     idsToRecover.forEach(id => {
-      const d = detailMap[id];
+      const targetId = String(id);
+      const d = detailMap[targetId];
       
       let type = 'Scene';
       let isVideo = false;
-      let title = `Wallpaper ${id}`;
+      let title = `Wallpaper ${targetId}`;
       let thumb = '';
       let total = 0;
 
       // 若成功获取到数据，则覆盖兜底信息
-      if (d && d.result === 1) {
+      if (d) {
         const tags = (d.tags || []).map(t => String(t.tag || t).toLowerCase());
         if (tags.includes('video')) { type = 'Video'; isVideo = true; }
         else if (tags.includes('application')) type = 'App';
@@ -2349,16 +2347,18 @@ async function recoverQueueFromSteamTemp() {
         title = (d.title || title).replace(/[<>:"/\\|?*]+/g, ' ').trim();
         thumb = d.preview_url || '';
         total = parseInt(d.file_size) || 0;
+      } else {
+        console.warn(`[Queue] 无法获取 ${targetId} 的详情，将使用兜底数据排队。`);
       }
 
       TASK_QUEUE.push({
-        id: parseInt(id),
+        id: parseInt(targetId),
         appId: parseInt(appId),
         title: title,
         isVideo: isVideo,
         type: type,
         sourceUrl: '', 
-        status: 'pending', // 正常排队，不再暂停
+        status: 'pending', // 正常排队，等待引擎抓取
         progress: 0,
         speed: 0,
         downloaded: 0,
@@ -2370,14 +2370,14 @@ async function recoverQueueFromSteamTemp() {
       recoveredCount++;
     });
 
-    console.log(`[Queue] 成功为 ${recoveredCount} 个恢复任务加载了封面和名称，已正式加入排队下载`);
+    console.log(`[Queue] 成功恢复 ${recoveredCount} 个任务并加入排队下载`);
     
     // 6. 直接唤醒后台下载引擎进行下载
     if (recoveredCount > 0) {
       triggerQueue();
     }
   } catch (e) {
-    console.warn('[Queue] 从临时目录恢复任务详情失败:', e.message);
+    console.warn('[Queue] 从临时沙盒恢复任务详情失败:', e.message);
   }
 }
 const server = http.createServer(async (req, res) => {
@@ -2495,32 +2495,12 @@ const server = http.createServer(async (req, res) => {
           if (t.cancelFn) t.cancelFn();
         }
         
-        // 清理 SteamCMD 产生的临时目录和 patch 残留文件
+        // 清理独立沙盒目录
         try {
           const targetId = String(t.id);
-          const appId = String(t.appId || 431960);
-          const wsDir = path.join(STEAM_CONFIG_DIR, 'steamapps', 'workshop');
-          
-          // 删除 content 和 downloads 下半成品的 ID 文件夹
-          const tempDir = path.join(wsDir, 'downloads', appId, targetId);
-          const contentDir = path.join(wsDir, 'content', appId, targetId);
-          if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
-          if (fs.existsSync(contentDir)) fs.rmSync(contentDir, { recursive: true, force: true });
-      
-          // 清理 downloads 目录下包含目标 ID 的 .patch 文件
-          const dlRoot = path.join(wsDir, 'downloads');
-          if (fs.existsSync(dlRoot)) {
-            for (const f of fs.readdirSync(dlRoot)) {
-              if (f.endsWith('.patch') && f.includes(targetId)) {
-                fs.rmSync(path.join(dlRoot, f), { force: true });
-              }
-            }
-          }
-          
-          // 清理因删除导致空空如也的 431960 空文件夹
-          const dlAppDir = path.join(wsDir, 'downloads', appId);
-          if (fs.existsSync(dlAppDir) && fs.readdirSync(dlAppDir).length === 0) {
-            fs.rmdirSync(dlAppDir);
+          const taskRoot = path.join(STEAM_CONFIG_DIR, 'tasks', targetId);
+          if (fs.existsSync(taskRoot)) {
+            fs.rmSync(taskRoot, { recursive: true, force: true });
           }
         } catch (e) {
           console.error('[Cleanup] 取消任务时清理残留文件失败:', e);
