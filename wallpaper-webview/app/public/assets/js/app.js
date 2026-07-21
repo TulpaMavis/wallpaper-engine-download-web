@@ -2355,22 +2355,22 @@ document.addEventListener('click', (e) => {
       if (filename) downloadLibraryItem(filename, target.dataset.isdir === 'true');
       break;
     case 'delete-queue':
-      if (id) promptCancelTask(id);
+      if (id) promptCancelTask(Number(id));
       break;
     case 'clear-queue':
-      if (id) qAction('cancel', id);
+      if (id) qAction('cancel', Number(id));
       break;
     case 'q-up':
-      if (id) qAction('up', id);
+      if (id) qAction('up', Number(id));
       break;
     case 'q-down':
-      if (id) qAction('down', id);
+      if (id) qAction('down', Number(id));
       break;
     case 'q-pause':
-      if (id) qAction('pause', id);
+      if (id) qAction('pause', Number(id));
       break;
     case 'q-resume':
-      if (id) qAction('resume', id);
+      if (id) qAction('resume', Number(id));
       break;
     case 'details':
       if (id) openModal(id, target.dataset.title, target.dataset.thumb, target.dataset.type);
