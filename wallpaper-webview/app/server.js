@@ -973,7 +973,7 @@ async function handleQuery(req, res) {
     let cursorPage = page;
     let scanned = 0;
 
-    while (matched.length < numperpage && scanned < 6 && cursorPage <= 999) {
+    while (matched.length < numperpage && scanned < 1 && cursorPage <= 999) {
       const pageParams = Object.assign({}, params, { page: cursorPage });
       let sourceData = null;
       
