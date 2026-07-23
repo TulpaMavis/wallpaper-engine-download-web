@@ -70,7 +70,7 @@ const I18N = {
     disclaimerText: '免责声明：本项目在人工智能辅助下完成开发与整理，发布者未逐行人工审阅或手写核心代码；若与其他项目存在相似实现，可能属于技术方案趋同。项目仅供学习交流，请勿用于商业用途或侵权场景。',
     resultsZero: '0 个结果',
     noListByNetwork: '未获取到壁纸列表，当前网络可能无法访问 Steam 社区服务。',
-    noMatched: '未找到匹配的壁纸，请尝试修改筛选条件',
+    noMatched: '未找到匹配的壁纸，请尝试修搜索/改筛选条件',
     resultsApprox: '约 {total} 个 · 共 {pages} 页',
     loadingWorkshop: '正在抓取 Steam 创意工坊...',
     loadingWorkflow: '抓取列表 → 批量获取详情数据',
@@ -863,18 +863,24 @@ async function load(){
     const resp = data.response||data;
     const list = resp.publishedfiledetails||[];
 
+    S.items      = list;
+    S.totalItems = parseInt(resp.total) || (S.page > 1 ? 50000 : list.length);
+    S.totalPages = Math.min(999, Math.max(1, Math.ceil(S.totalItems / PAGE_SIZE)));
+
     if(!list.length){
       document.getElementById('resCnt').textContent=t('resultsZero');
-      if(canShowProxyGuideByFilters()){
-        showError(t('noListByNetwork'));
-      }else{
-        showEmpty(t('noMatched'));
+      
+      if (S.page === 1) {
+        // 第一页没数据，提示修改搜索/筛选条件
+        showEmpty(t('noMatched')); 
+      } else {
+        // 翻页过程中遇到空数据，提示是因为被过滤了，请继续翻页
+      showEmpty("当前页面的壁纸已被筛选条件全部过滤。<br><br><span style='font-size: 13px;'>请点击下方“下一页”继续浏览，或放宽筛选条件。</span>");
       }
-      document.getElementById('pgn').innerHTML='';
+      
+      // 渲染分页器
+      renderPagination();
     } else {
-      S.items      = list;
-      S.totalItems = parseInt(resp.total) || list.length;
-      S.totalPages = Math.min(999, Math.max(1, Math.ceil(S.totalItems / PAGE_SIZE)));
       const dispTotal = S.totalItems >= 50000 ? '50,000+' : S.totalItems.toLocaleString('zh-CN');
       document.getElementById('resCnt').textContent = t('resultsApprox', { total: dispTotal, pages: S.totalPages });
       renderItems(S.items);
