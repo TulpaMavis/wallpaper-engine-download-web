@@ -2388,7 +2388,6 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (pn==='/health')                                    { send(res,200,'ok'); return; }
-    if (pn==='/favicon.ico')                               { res.writeHead(204, { 'Cache-Control':'public, max-age=604800' }); res.end(); return; }
     if (pn==='/api/debug')                                 { await handleDebug(res); return; }
     if (pn==='/api/steam/query' && req.method==='POST')    { await handleQuery(req,res); return; }
     if (pn==='/api/steam/details' && req.method==='GET')   {
