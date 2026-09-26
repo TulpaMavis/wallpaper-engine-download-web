@@ -1961,6 +1961,7 @@ async function triggerQueue() {
         await new Promise(r => setTimeout(r, 1000)); // 延长缓冲时间
 
         if (dl.kind === 'file') {
+          try { execFileSync('chmod', ['-R', 'a+rwX', dl.filePath]); } catch (e) {} // 修改文件权限
           const finalPath = path.join(DOWNLOAD_DIR, dl.fileName);
           if (dl.filePath !== finalPath) {
             try {
