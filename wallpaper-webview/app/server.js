@@ -1968,7 +1968,19 @@ async function triggerQueue() {
               await fs.promises.rename(dl.filePath, finalPath);
             } catch (err) {
               if (err.code === 'EXDEV') {
-                await fs.promises.cp(dl.filePath, finalPath, { recursive: true });
+                await new Promise((resolve, reject) => {
+                  const tmp = finalPath + '.part';
+                  const rs = fs.createReadStream(dl.filePath, { highWaterMark: 8 * 1024 * 1024 });
+                  const ws = fs.createWriteStream(tmp);
+                  const fail = (e) => { rs.destroy(); ws.destroy(); try { fs.unlinkSync(tmp); } catch {} reject(e); };
+                  rs.on('error', fail);
+                  ws.on('error', fail);
+                  ws.on('finish', () => {
+                    try { fs.renameSync(tmp, finalPath); resolve(); }
+                    catch (e) { fail(e); }
+                  });
+                  rs.pipe(ws);
+                });
                 await fs.promises.rm(dl.filePath, { recursive: true, force: true });
               } else throw err;
             }
