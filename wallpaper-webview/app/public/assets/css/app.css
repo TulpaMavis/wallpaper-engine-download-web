@@ -2733,3 +2733,111 @@ body.theme-light .head-settings-btn:hover {
   user-select: none;            /* 禁用标准文本选中 */
   -webkit-touch-callout: none;  /* 禁用 iOS 长按链接或图片时弹出的默认系统菜单 */
 }
+
+
+/* ===== 壁纸详情页：本地下载和删除按钮优化 ===== */
+
+/* 让订阅/下载按钮与两个图标按钮等高 */
+#mSubBtn,
+#mLocalDownloadBtn,
+#mLocalDeleteBtn {
+  height: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+/* 下载、删除图标按钮的统一基础样式 */
+#mLocalDownloadBtn,
+#mLocalDeleteBtn {
+  flex: 0 0 44px !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-height: 44px;
+  padding: 0 !important;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 9px !important;
+  color: #ffffff !important;
+  cursor: pointer;
+  transition:
+    color var(--tr),
+    background var(--tr),
+    border-color var(--tr);
+}
+
+/* SVG 图标跟随按钮文字颜色 */
+#mLocalDownloadBtn svg,
+#mLocalDeleteBtn svg {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+/* 下载：悬停变蓝 */
+#mLocalDownloadBtn:hover {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  background: var(--surface) !important;
+}
+
+/* 删除：悬停变红 */
+#mLocalDeleteBtn:hover {
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+  background: rgba(244, 92, 92, 0.1) !important;
+}
+
+
+/* ===== 手机端壁纸详情页底部按钮横向排列 ===== */
+@media (max-width: 768px) {
+  /* 不再强制底部按钮纵向排列 */
+  #mOv .modal-foot {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 12px;
+  }
+
+  /* 播放/订阅按钮占据剩余空间 */
+  #mOv .modal-foot #mSubBtn,
+  #mOv .modal-foot .modal-play-btn {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 8px 4px;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+
+  /* 下载和删除按钮：固定尺寸，不允许换到下一行 */
+  #mOv #mLocalDownloadBtn,
+  #mOv #mLocalDeleteBtn {
+    display: flex;
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    min-width: 44px;
+    max-width: 44px;
+    height: 44px !important;
+    min-height: 44px;
+    padding: 0 !important;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Steam 页面链接单独放到下一行 */
+  #mOv #mSteam {
+    flex: 0 0 100%;
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: center;
+  }
+}
