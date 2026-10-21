@@ -2155,23 +2155,33 @@ async function executeLibBatchDelete() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ names: Array.from(libSelected) })
     });
-    if (res.ok) {
-      toast('批量删除成功', 'ok');
+    if (!res.ok) return toast('批量删除失败', 'warn');
 
-      document.querySelectorAll('#libraryList .q-item').forEach(el => {
-        const chk = el.querySelector('.lib-batch-chk');
-        if (chk && chk.checked) el.remove();
-      });
-      
-      libSelected.clear();
-      toggleLibBatchMode(); 
+    const data = await res.json();
+    const deleted = data.deletedCount || 0;
+    const total = libSelected.size;
 
-      const container = document.getElementById('libraryList');
-      if (container && container.querySelectorAll('.q-item').length === 0) {
-        container.innerHTML = '<div style="text-align:center; color:var(--text3); padding:30px;">本地库空空如也 🍃</div>';
-      }
+    if (deleted === 0) {
+      toast('删除失败：未找到匹配文件', 'warn');
+      return;
+    }
+    if (deleted < total) {
+      toast(`已删除 ${deleted}/${total} 项，部分文件未找到`, 'warn');
     } else {
-      toast('部分删除失败', 'warn');
+      toast(`已删除 ${deleted} 项`, 'ok');
+    }
+
+    document.querySelectorAll('#libraryList .q-item').forEach(el => {
+      const chk = el.querySelector('.lib-batch-chk');
+      if (chk && libSelected.has(chk.dataset.name)) el.remove();
+    });
+
+    libSelected.clear();
+    toggleLibBatchMode();
+
+    const container = document.getElementById('libraryList');
+    if (container && container.querySelectorAll('.q-item').length === 0) {
+      container.innerHTML = '<div style="text-align:center; color:var(--text3); padding:30px;">本地库空空如也 🍃</div>';
     }
   } catch (e) {
     toast('网络请求失败', 'warn');
@@ -2319,7 +2329,10 @@ async function fetchLibrary() {
         ${typeBadge}
       </div>`;
 
-      const chkHtml = `<input type="checkbox" class="lib-batch-chk" style="width:20px;height:20px;cursor:pointer;margin-right:10px;accent-color:var(--danger);flex-shrink:0; display:${libBatchMode ? 'block' : 'none'};" onchange="toggleLibSelect('${safeName}', this.checked)" ${libSelected.has(t.name) ? 'checked' : ''}>`;
+      const chkHtml = `<input type="checkbox" class="lib-batch-chk" 
+        data-name="${safeName}" 
+        style="width:20px;height:20px;cursor:pointer;margin-right:10px;accent-color:var(--danger);flex-shrink:0; display:${libBatchMode ? 'block' : 'none'};" 
+        ${libSelected.has(t.name) ? 'checked' : ''}>`;
 
       // 将打开详情页的事件转移到壁纸名称上，并加入鼠标经过变色的反馈提示，同时传参真实Type
       return `
@@ -2510,4 +2523,10 @@ document.addEventListener('contextmenu', (e) => {
     e.preventDefault(); 
     showPlayerMenu(e, target.dataset.filename);
   }
+});
+
+document.addEventListener('change', (e) => {
+  const chk = e.target.closest('.lib-batch-chk');
+  if (!chk) return;
+  toggleLibSelect(chk.dataset.name, chk.checked);
 });
