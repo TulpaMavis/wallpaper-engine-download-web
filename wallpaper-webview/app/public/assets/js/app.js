@@ -255,13 +255,16 @@ function renderPlayerSettings() {
     let playerDeleteTargetIdx = null;
     function promptDeletePlayer(idx) {
       playerDeleteTargetIdx = idx;
-      document.getElementById('playerDeleteConfirmModalOv').classList.add('open');
-      document.body.style.overflow = 'hidden';
+      const ov = document.getElementById('playerDeleteConfirmModalOv');
+      if (ov) {
+        ov.classList.add('open');
+        openHistoryModal('playerDeleteConfirmModalOv');
+        document.body.style.overflow = 'hidden';
+      }
     }
     function closePlayerDeleteModal() {
       playerDeleteTargetIdx = null;
-      document.getElementById('playerDeleteConfirmModalOv').classList.remove('open');
-      document.body.style.overflow = '';
+      closeHistoryModal('playerDeleteConfirmModalOv');
     }
     function submitPlayerDelete() {
       if (playerDeleteTargetIdx !== null) {
@@ -366,6 +369,81 @@ function t(k, vars){
   return s;
 }
 
+
+/* ===== 统一管理弹窗的浏览器返回键 ===== */
+const wallHubModalStack = [];
+let wallHubIgnorePop = false;
+
+// 打开弹窗时调用：为弹窗创建一条历史记录
+function openHistoryModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+
+  // 防止同一个弹窗重复压入历史记录
+  if (wallHubModalStack.includes(modalId)) return;
+
+  wallHubModalStack.push(modalId);
+
+  history.pushState(
+    { ...(history.state || {}), wallHubModalId: modalId },
+    '',
+    location.href
+  );
+}
+
+// 关闭弹窗时调用：关闭界面，并同步清理历史记录
+function closeHistoryModal(modalId, fromPopState = false) {
+  const modal = document.getElementById(modalId);
+  if (modal) modal.classList.remove('open');
+
+  const index = wallHubModalStack.lastIndexOf(modalId);
+  if (index !== -1) wallHubModalStack.splice(index, 1);
+
+  const hasOpenModal = document.querySelector(
+    '.modal-ov.open, .settings-modal-ov.open, .login-modal-ov.open, [id$="ModalOv"].open'
+  );
+
+  if (!hasOpenModal) document.body.style.overflow = '';
+
+  if (!fromPopState && history.state?.wallHubModalId === modalId) {
+    wallHubIgnorePop = true;
+    history.back();
+  }
+}
+
+// 必须使用捕获阶段，优先于原有的主页 popstate 监听器执行
+
+window.addEventListener('popstate', function (event) {
+  // 处理手动关闭弹窗时产生的返回事件
+  if (wallHubIgnorePop) {
+    wallHubIgnorePop = false;
+    event.stopImmediatePropagation();
+    return;
+  }
+
+  // 优先关闭视频播放窗口
+  // 即使视频是在小窗口中打开，也先关闭视频
+  const videoOv = document.getElementById('videoModalOv');
+
+  if (videoOv && videoOv.classList.contains('open')) {
+    event.stopImmediatePropagation();
+    closeVideoModal(true);
+    return;
+  }
+
+  // 视频没有打开时，才关闭普通小窗口
+  while (wallHubModalStack.length) {
+    const modalId = wallHubModalStack.pop();
+    const modal = document.getElementById(modalId);
+
+    if (modal && modal.classList.contains('open')) {
+      closeHistoryModal(modalId, true);
+      event.stopImmediatePropagation();
+      return;
+    }
+  }
+}, true);
+
 function setupEvents(){
   document.getElementById('searchInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doSearch(); });
   document.getElementById('searchBtn').addEventListener('click', doSearch);
@@ -395,15 +473,25 @@ function toggleTheme(){
 
 function openSettingsModal(){
   updateSettingsCheckmarks();
+
   document.getElementById('settingsModalOv').classList.add('open');
+  openHistoryModal('settingsModalOv');
+
   const modalBody = document.querySelector('#settingsModalOv .settings-modal-body');
   if (modalBody) modalBody.scrollTop = 0;
-  document.body.style.overflow='hidden';
+  document.body.style.overflow = 'hidden';
 }
+
 function closeSettingsModal(){
-  document.getElementById('settingsModalOv').classList.remove('open');
-  document.body.style.overflow='';
+  closeHistoryModal('settingsModalOv');
 }
+
+function settingsModalOvClick(e){
+  if(e.target === document.getElementById('settingsModalOv')) {
+    closeSettingsModal();
+  }
+}
+
 function settingsModalOvClick(e){
   if(e.target===document.getElementById('settingsModalOv')) closeSettingsModal();
 }
@@ -480,11 +568,14 @@ async function submitApiInput() {
 
 function showClearApiConfirm() {
   const ov = document.getElementById('clearApiConfirmModalOv');
-  if (ov) { ov.classList.add('open'); document.body.style.overflow = 'hidden'; }
+  if (ov) {
+    ov.classList.add('open');
+    openHistoryModal('clearApiConfirmModalOv');
+    document.body.style.overflow = 'hidden';
+  }
 }
 function closeClearApiConfirmModal() {
-  const ov = document.getElementById('clearApiConfirmModalOv');
-  if (ov) { ov.classList.remove('open'); document.body.style.overflow = ''; }
+  closeHistoryModal('clearApiConfirmModalOv');
 }
 async function submitClearApiConfirm() {
   closeClearApiConfirmModal();
@@ -1180,7 +1271,8 @@ function openModal(id, fallbackTitle='', fallbackThumb='', fallbackType=''){
   document.getElementById('mCmts').innerHTML=`<div class="cmt-spin"><div class="spinner-sm"></div>${t('loadingCmts')}</div>`;
 
   document.getElementById('mOv').classList.add('open');
-  document.body.style.overflow='hidden';
+  openHistoryModal('mOv');
+  document.body.style.overflow = 'hidden';
   
   // 清除详情页的滚动记忆，强制回到顶部
   const modalBody = document.querySelector('#mOv .modal-body');
@@ -1261,9 +1353,9 @@ function renderCmts(list){
 }
 
 function closeModal(){
-  document.getElementById('mOv').classList.remove('open');
-  document.body.style.overflow='';
+  closeHistoryModal('mOv');
 }
+
 function mOvClick(e){ if(e.target===document.getElementById('mOv')) closeModal(); }
 
 function dlWall(fid, title){
@@ -1360,16 +1452,12 @@ function showLogoutConfirm(){
   const ov = document.getElementById('logoutConfirmModalOv');
   if (ov) {
     ov.classList.add('open');
+    openHistoryModal('logoutConfirmModalOv');
     document.body.style.overflow = 'hidden';
   }
 }
-
 function closeLogoutConfirmModal(){
-  const ov = document.getElementById('logoutConfirmModalOv');
-  if (ov) {
-    ov.classList.remove('open');
-    document.body.style.overflow = '';
-  }
+  closeHistoryModal('logoutConfirmModalOv');
 }
 
 function submitLogoutConfirm(){
@@ -1476,8 +1564,10 @@ async function submitSteamLogin(){
 document.addEventListener('DOMContentLoaded', () => {
   const queueBtn = document.getElementById('queueBtn');
   if (queueBtn) {
-    queueBtn.addEventListener('click', () => {
+	queueBtn.addEventListener('click', () => {
       document.getElementById('queueModalOv').classList.add('open');
+      openHistoryModal('queueModalOv');
+      document.body.style.overflow = 'hidden';
       fetchQueue();
     });
   }
@@ -1485,8 +1575,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // 本地库
   const libraryBtn = document.getElementById('libraryBtn');
   if (libraryBtn) {
-    libraryBtn.addEventListener('click', () => {
+	libraryBtn.addEventListener('click', () => {
       document.getElementById('libraryModalOv').classList.add('open');
+      openHistoryModal('libraryModalOv');
+      document.body.style.overflow = 'hidden';
+
       if (libBatchMode) toggleLibBatchMode();
       fetchLibrary();
     });
@@ -1513,6 +1606,19 @@ function updateAllWallButtons() {
 
     if (isModal) {
       btn.style.pointerEvents = '';
+    
+      const modalDownloadBtn = document.getElementById('mLocalDownloadBtn');
+      const modalDeleteBtn = document.getElementById('mLocalDeleteBtn');
+    
+      [modalDownloadBtn, modalDeleteBtn].forEach(actionBtn => {
+        if (!actionBtn) return;
+    
+        // 保存本地文件名，供下载和删除按钮使用
+        actionBtn.dataset.filename = dlFileName || '';
+    
+        // 只有已经下载的壁纸才显示这两个按钮
+        actionBtn.style.display = dlFileName ? 'flex' : 'none';
+      });
     } else {
       btn.style.pointerEvents = 'auto';
     }
@@ -1706,18 +1812,15 @@ function promptCancelTask(id) {
   const ov = document.getElementById('confirmModalOv');
   if (ov) {
     ov.classList.add('open');
-    document.body.style.overflow = 'hidden'; // 防止背景滚动
+    openHistoryModal('confirmModalOv');
+    document.body.style.overflow = 'hidden';
   }
 }
 
 // 关闭确认框
 function closeConfirmModal() {
   cancelTargetId = null;
-  const ov = document.getElementById('confirmModalOv');
-  if (ov) {
-    ov.classList.remove('open');
-    document.body.style.overflow = ''; // 恢复背景滚动
-  }
+  closeHistoryModal('confirmModalOv');
 }
 
 // 在弹窗里点击了“确定取消”
@@ -2008,12 +2111,15 @@ function closeVideoModal(fromPopState = false) {
 }
 
 window.addEventListener('popstate', (e) => {
+  // 视频弹窗返回键逻辑
   if (window.ignoreNextPop) {
     window.ignoreNextPop = false;
     e.stopImmediatePropagation();
     return;
   }
+
   const videoOv = document.getElementById('videoModalOv');
+
   if (videoOv && videoOv.classList.contains('open')) {
     e.stopImmediatePropagation();
     closeVideoModal(true);
@@ -2028,18 +2134,17 @@ function toggleLibSelect(name, checked) {
 
 function submitLibBatchDelete() {
   if (libSelected.size === 0) return toast('未选择任何壁纸', 'warn');
-  // 统一样式的防误触确认框
   document.getElementById('libBatchDeleteCount').textContent = libSelected.size;
-  document.getElementById('libBatchDeleteConfirmModalOv').classList.add('open');
-  document.body.style.overflow = 'hidden'; 
+  const ov = document.getElementById('libBatchDeleteConfirmModalOv');
+  if (ov) {
+    ov.classList.add('open');
+    openHistoryModal('libBatchDeleteConfirmModalOv');
+    document.body.style.overflow = 'hidden';
+  }
 }
 
 function closeLibBatchDeleteModal() {
-  const ov = document.getElementById('libBatchDeleteConfirmModalOv');
-  if (ov) {
-    ov.classList.remove('open');
-    document.body.style.overflow = ''; 
-  }
+  closeHistoryModal('libBatchDeleteConfirmModalOv');
 }
 
 async function executeLibBatchDelete() {
@@ -2080,17 +2185,14 @@ function deleteLibraryItem(name) {
   if (ov && nameEl) {
     nameEl.textContent = name;
     ov.classList.add('open');
-    document.body.style.overflow = 'hidden'; 
+    openHistoryModal('libraryDeleteConfirmModalOv');
+    document.body.style.overflow = 'hidden';
   }
 }
 
 function closeLibraryDeleteModal() {
   libraryDeleteTarget = null;
-  const ov = document.getElementById('libraryDeleteConfirmModalOv');
-  if (ov) {
-    ov.classList.remove('open');
-    document.body.style.overflow = ''; 
-  }
+  closeHistoryModal('libraryDeleteConfirmModalOv');
 }
 
 async function submitLibraryDelete() {
@@ -2106,6 +2208,10 @@ async function submitLibraryDelete() {
     });
     if (res.ok) {
       toast('删除成功', 'ok');
+
+      // 刷新本地下载映射，并更新详情页按钮状态
+      await fetchQueue();
+      updateAllWallButtons();
 
       document.querySelectorAll('#libraryList .q-item').forEach(el => {
         const delBtn = el.querySelector('[data-action="delete-lib"]');
@@ -2383,6 +2489,16 @@ document.addEventListener('click', (e) => {
       break;
     case 'toast':
       if (msg) toast(msg, 'warn');
+      break;
+    case 'modal-download-lib':
+      if (filename) {
+        downloadLibraryItem(filename, false);
+      }
+      break;
+    case 'modal-delete-lib':
+      if (filename) {
+        deleteLibraryItem(filename);
+      }
       break;
   }
 });
