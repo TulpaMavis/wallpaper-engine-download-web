@@ -179,6 +179,40 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         订阅 / 下载壁纸
       </button>
+	  
+      <!-- 下载本地已保存的壁纸 -->
+      <button
+        id="mLocalDownloadBtn"
+        data-action="modal-download-lib"
+        title="下载已保存的壁纸"
+        aria-label="下载已保存的壁纸"
+        style="display:none; flex:0 0 38px; width:38px; height:38px; padding:0; align-items:center; justify-content:center; border-radius:6px; background:var(--bg3); border:1px solid var(--border); color:var(--text2); cursor:pointer;"
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      </button>
+      
+      <!-- 删除本地已保存的壁纸 -->
+      <button
+        id="mLocalDeleteBtn"
+        data-action="modal-delete-lib"
+        title="删除已保存的壁纸"
+        aria-label="删除已保存的壁纸"
+        style="display:none; flex:0 0 38px; width:38px; height:38px; padding:0; align-items:center; justify-content:center; border-radius:6px; background:var(--bg3); border:1px solid var(--border); color:var(--danger); cursor:pointer;"
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+          <path d="M3 6h18"/>
+          <path d="M8 6V4h8v2"/>
+          <path d="m19 6-1 14H6L5 6"/>
+          <path d="M10 11v5M14 11v5"/>
+        </svg>
+      </button>
+
       <a class="steam-link" id="mSteam" href="#" target="_blank">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         Steam页面
@@ -262,7 +296,7 @@
 
 <script src="/assets/js/app.js"></script>
 <!-- 下载队列管理 Modal -->
-<div class="settings-modal-ov" id="queueModalOv" onclick="if(event.target===this) this.classList.remove('open')">
+<div class="settings-modal-ov" id="queueModalOv" onclick="if(event.target===this) closeHistoryModal('queueModalOv')">
   <div class="settings-modal" style="max-width: 640px;">
     <div class="settings-modal-head" style="flex-direction: column; align-items: flex-start; gap: 12px;">
       <div style="display:flex; justify-content: space-between; width: 100%; align-items: center;">
@@ -270,7 +304,7 @@
           📦 下载队列 
           <span id="sysNetSpeed" style="font-size:14px; color:var(--accent); margin-left:12px; font-family:monospace; font-weight:700;"></span>
         </div>
-        <button class="xbtn" onclick="document.getElementById('queueModalOv').classList.remove('open')">×</button>
+        <button class="xbtn" onclick="closeHistoryModal('queueModalOv')">×</button>
       </div>
       
       <div style="display:flex; gap:10px; align-items:center; width: 100%;">
@@ -362,7 +396,7 @@
     </div>
   </div>
 </div>
-<div class="settings-modal-ov" id="libraryDeleteConfirmModalOv" style="z-index: 400;" onclick="if(event.target===this) closeLibraryDeleteModal()">
+<div class="settings-modal-ov" id="libraryDeleteConfirmModalOv" style="z-index: 600;" onclick="if(event.target===this) closeLibraryDeleteModal()">
   <div class="settings-modal" style="max-width: 320px;">
     <div class="settings-modal-head" style="padding-bottom: 16px;">
       <div class="settings-modal-title">删除本地壁纸</div>
@@ -399,14 +433,14 @@
     </div>
   </div>
 </div>
-<div class="settings-modal-ov" id="libraryModalOv" onclick="if(event.target===this) this.classList.remove('open')">
+<div class="settings-modal-ov" id="libraryModalOv" onclick="if(event.target===this) closeHistoryModal('libraryModalOv')">
   <div class="settings-modal" style="max-width: 640px;">
     <div class="settings-modal-head" style="flex-direction: column; align-items: flex-start; gap: 12px;">
       <div style="display:flex; justify-content: space-between; width: 100%; align-items: center;">
         <div class="settings-modal-title">🗂️ 本地图库</div>
         <div style="display:flex; gap:8px; align-items:center;">
           <button class="btn-s" id="libBatchBtn" style="padding:4px 10px; font-size:12px; height:32px;" onclick="toggleLibBatchMode()">批量操作</button>
-          <button class="xbtn" onclick="document.getElementById('libraryModalOv').classList.remove('open')">×</button>
+          <button class="xbtn" onclick="closeHistoryModal('libraryModalOv')">×</button>
         </div>
       </div>
       <div id="libBatchAction" style="display:none; width:100%; background:var(--bg3); border-radius:6px; padding:8px 12px; border:1px solid var(--border); justify-content:space-between; align-items:center;">
