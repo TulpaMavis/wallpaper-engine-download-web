@@ -908,19 +908,28 @@ function buildParams(){
 }
 
 // 全局作者搜索跳转函数
-function searchByCreator(creatorId) {
+async function searchByCreator(creatorId) {
   if (!creatorId) return;
-  closeModal(); // 关闭详情弹窗
-  
-  // 关闭其他弹窗，以露出底部的主页搜索结果
+
+  const modalEl = document.getElementById('mOv');
+  const wasModalOpen = modalEl && modalEl.classList.contains('open');
+
+  closeModal();
+
+  if (wasModalOpen) {
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  }
+
   document.querySelectorAll('.settings-modal-ov').forEach(el => el.classList.remove('open'));
-  
+
   const searchInput = document.getElementById('searchInput');
   if (searchInput) searchInput.value = 'author:' + creatorId;
+
   S.page = 1;
   S.f.search = 'author:' + creatorId;
+
   savePrefs();
-  load(); // 触发搜索
+  load();
 }
 
 let currentLoadId = 0;
