@@ -1527,7 +1527,12 @@ async function zipDir(dirPath, zipPath) {
 }
 async function ensureSteamCmdReady() {
   const found = await resolveSteamCmdPath();
-  if (found) return found;
+  if (found) {
+    if (process.platform !== 'win32') {
+      try { await runProcess('chmod', ['-R', 'a+x', path.dirname(found)], 10000); } catch (e) {}
+    }
+    return found;
+  }
   const base = path.join(__dirname, 'steamcmd');
   ensureDir(base);
   
@@ -1549,7 +1554,7 @@ async function ensureSteamCmdReady() {
         }
         
         if (fs.existsSync(steamcmdSh)) {
-          await runProcess('chmod', ['+x', steamcmdSh], 5000);
+          await runProcess('chmod', ['-R', 'a+x', base], 10000);
           return steamcmdSh;
         }
       }
@@ -2005,7 +2010,17 @@ async function triggerQueue() {
         ACTIVE_TASK.speed = 0;
       }
     }
+    
+    // 下载完成后自动清理队列记录，但保留已经下载到本地的文件
+    if (ACTIVE_TASK && ACTIVE_TASK.status === 'completed') {
+      const completedIndex = TASK_QUEUE.indexOf(ACTIVE_TASK);
+      if (completedIndex !== -1) {
+        TASK_QUEUE.splice(completedIndex, 1);
+      }
+    }
+
     ACTIVE_TASK = null;
+
   }
   queueProcessorRunning = false;
 }
