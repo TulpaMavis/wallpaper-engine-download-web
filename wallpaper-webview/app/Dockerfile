@@ -18,18 +18,6 @@ RUN apt-get update && \
         && \
     rm -rf /var/lib/apt/lists/*
 
-# 安装 SteamCMD
-RUN mkdir -p /steamcmd && \
-    cd /steamcmd && \
-    wget -q https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz && \
-    tar -xvzf steamcmd_linux.tar.gz && \
-    rm steamcmd_linux.tar.gz && \
-    chmod +x steamcmd.sh
-
-# 设置环境变量
-ENV STEAMCMD_DIR=/app
-ENV PATH="${STEAMCMD_DIR}:${PATH}"
-
 # 设置工作目录（可被 docker-compose 覆盖）
 WORKDIR /app
 
