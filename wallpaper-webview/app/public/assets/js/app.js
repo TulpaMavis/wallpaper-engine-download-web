@@ -678,11 +678,11 @@ function applyStateToControls(){
   setView(S.view);
 }
 
-function savePrefs(){
-  syncStateToUrl();
+function savePrefs(opts){
+  syncStateToUrl(opts && opts.replace);
 }
 
-function syncStateToUrl() {
+function syncStateToUrl(useReplace) {
   const params = new URLSearchParams();
   if (S.f.search) params.set('q', S.f.search);
   if (S.page > 1) params.set('p', S.page);
@@ -705,7 +705,16 @@ function syncStateToUrl() {
 
   const newSearch = params.toString() ? '?' + params.toString() : '';
   const newUrl = window.location.pathname + newSearch;
-  if (window.location.pathname + window.location.search !== newUrl) {
+  const currentUrl = window.location.pathname + window.location.search;
+
+  if (useReplace) {
+    const hasModalState = !!(history.state && history.state.wallHubModalId);
+    if (currentUrl !== newUrl || hasModalState) {
+      const newState = Object.assign({}, history.state || {});
+      delete newState.wallHubModalId;
+      window.history.replaceState(newState, '', newUrl);
+    }
+  } else if (currentUrl !== newUrl) {
     window.history.pushState(null, '', newUrl);
   }
 }
@@ -914,13 +923,18 @@ async function searchByCreator(creatorId) {
   const modalEl = document.getElementById('mOv');
   const wasModalOpen = modalEl && modalEl.classList.contains('open');
 
-  closeModal();
-
   if (wasModalOpen) {
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    modalEl.classList.remove('open');
+    const idx = wallHubModalStack.lastIndexOf('mOv');
+    if (idx !== -1) wallHubModalStack.splice(idx, 1);
   }
 
   document.querySelectorAll('.settings-modal-ov').forEach(el => el.classList.remove('open'));
+
+  const hasOpenModal = document.querySelector(
+    '.modal-ov.open, .settings-modal-ov.open, .login-modal-ov.open, [id$="ModalOv"].open'
+  );
+  if (!hasOpenModal) document.body.style.overflow = '';
 
   const searchInput = document.getElementById('searchInput');
   if (searchInput) searchInput.value = 'author:' + creatorId;
@@ -928,7 +942,7 @@ async function searchByCreator(creatorId) {
   S.page = 1;
   S.f.search = 'author:' + creatorId;
 
-  savePrefs();
+  savePrefs({ replace: true });
   load();
 }
 
